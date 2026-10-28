@@ -1,0 +1,45 @@
+# RyCruit
+
+A free, accountless collaborative interview pad. One pnpm package. Node 24+ and pnpm 11 required.
+
+## Develop
+
+The project lives at `~/repos/rycruit`.
+
+```
+pnpm install
+docker build -f Dockerfile.sandbox -t rycruit-sandbox .
+pnpm server
+pnpm dev
+```
+
+Open http://localhost:5173. Vite proxies HTTP and websocket traffic to port 3001. The server defaults to the Docker runner. For trusted code only, `RUNNER=local pnpm server` uses host Python 3, g++ and Java 17. Local mode is not a security boundary: submitted code has the server user's filesystem and network access. It applies wall time, process-group cleanup, output limits, file-size limits, and address-space ulimits for Python/C++; Java uses bounded JVM heap/metaspace instead because a 256MB virtual-address-space limit prevents the JVM from starting. Use Docker for enforcing the total 256MB memory limit.
+
+SQLite stores only each pad's Y.Doc (buffers, stdin, language, timer, last 20 results) in `data/rycruit.sqlite`. Writes debounce 400ms and flush on graceful shutdown. Presence stays ephemeral; the display name is saved only in the browser's localStorage. No accounts, repository integration, or analytics. Anyone with the pad link can edit and run its code; it is not a private or authenticated workspace.
+
+Islands Dark and Islands Light use JetBrains' upstream colors with self-hosted Inter and JetBrains Mono. The header sun/moon button persists this browser's theme under `rycruit.theme`, defaulting to the system color scheme; it is never shared with collaborators. See [THEME-SOURCES.md](THEME-SOURCES.md) for exact source files and color mappings.
+
+## Production / arm64 Mac mini
+
+```
+docker build -f Dockerfile.sandbox -t rycruit-sandbox .
+docker compose up --build -d
+```
+
+Open http://localhost:3001. Both base images support arm64 and the sandbox installs native toolchains with apt; no architecture is hardcoded. Build the sandbox on the same Docker daemon used by Compose. The app serves the built client and websocket endpoint from one port. Data lives in the `pads` named volume. Use a reverse proxy supporting websocket upgrades and HTTPS if exposing it beyond localhost.
+
+The mounted Docker socket gives the app host-level Docker access. Only the app accesses it; sandbox containers receive no mounts or network. Do not expose the Docker socket over TCP. This lightweight sandbox is suitable for trusted mock-interview groups, not a hardened public multi-tenant execution service. There is no authentication, rate limiting, pad expiry, or storage quota. Run requests queue globally at two concurrent jobs, with one outstanding job per pad.
+
+## Checks
+
+```
+pnpm test:runners
+RUNNER=docker pnpm test:runners
+pnpm test:collaboration
+pnpm format:check
+pnpm typecheck
+pnpm build
+node tests/theme-shots.js
+```
+
+The runner test exercises both modes and requires the sandbox image. The collaboration test requires a running server and uses two independent websocket clients (no BroadcastChannel). `PORT` can override its default server port.

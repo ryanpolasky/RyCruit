@@ -1,0 +1,16 @@
+name: rycruit
+services:
+  rycruit:
+    image: rycruit
+    build: .
+    ports:
+      - "3001:3001"
+    environment:
+      RUNNER: docker
+      DATA_DIR: /data
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - pads:/data
+    restart: unless-stopped
+volumes:
+  pads:
