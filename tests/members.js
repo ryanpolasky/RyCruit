@@ -17,6 +17,10 @@ const env = {
 };
 const base = "http://127.0.0.1:3104";
 let server = await startServer(3104, env);
+let serverOutput = "";
+server.stdout.on("data", (chunk) => {
+  serverOutput += chunk;
+});
 async function token(email, aud = "member-audience") {
   return new SignJWT({ email })
     .setProtectedHeader({ alg: "RS256", kid: "members" })
@@ -186,6 +190,10 @@ try {
     "shua@example.com",
   );
   assert.equal((await fetch(`${base}/api/pads/${id}`)).status, 200);
+  assert(serverOutput.includes(`pad created ${id} by shua@example.com`));
+  console.log(
+    "PASS creation log: pad ID and verified signed-in email are logged",
+  );
   let people = (await (await request("/api/admin/users", admin)).json()).users;
   const allowed = people.find((p) => p.email === "shua@example.com");
   assert.equal(allowed.note, "Practice partner");

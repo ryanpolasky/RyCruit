@@ -126,7 +126,8 @@ console.log(
   "PASS migration: existing pad state registered and preserved; deleted pad stays deleted after restart",
 );
 
-const locked = await startServer(3100);
+const lockedDirectory = `./data/locked-test-${Date.now()}`;
+const locked = await startServer(3100, { DATA_DIR: lockedDirectory });
 try {
   for (const path of [
     "/new",
@@ -159,6 +160,16 @@ try {
     );
   console.log(
     "PASS locked server: /new, /admin and admin read/write APIs return 403 without auth and with fake JWTs",
+  );
+  const lockedDb = new DatabaseSync(`${lockedDirectory}/rycruit.sqlite`);
+  assert.equal(lockedDb.prepare("SELECT count(*) AS n FROM pads").get().n, 0);
+  assert.equal(
+    lockedDb.prepare("SELECT count(*) AS n FROM pad_registry").get().n,
+    0,
+  );
+  lockedDb.close();
+  console.log(
+    "PASS locked creation: absent header/cookie and forged credentials never create pad content or registry rows",
   );
 } finally {
   await stopServer(locked);

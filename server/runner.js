@@ -1,11 +1,14 @@
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
+import { sandboxImage, sandboxUnavailable } from "./sandbox-image.js";
 
 export function runCode(input, mode = process.env.RUNNER || "docker") {
   return new Promise((resolve, reject) => {
     const name = `rycruit-${randomUUID()}`;
     const docker = mode === "docker";
+    if (docker && sandboxUnavailable())
+      return reject(new Error(sandboxUnavailable()));
     const args = docker
       ? [
           "run",
@@ -26,7 +29,7 @@ export function runCode(input, mode = process.env.RUNNER || "docker") {
           "--user",
           "65534",
           "-i",
-          "rycruit-sandbox",
+          sandboxImage,
         ]
       : [fileURLToPath(new URL("./sandbox.py", import.meta.url))];
     const child = spawn(docker ? "docker" : "python3", args, {
@@ -56,7 +59,15 @@ export function runCode(input, mode = process.env.RUNNER || "docker") {
       try {
         resolve(JSON.parse(output));
       } catch {
-        reject(new Error(error || "Runner terminated"));
+        reject(
+          new Error(
+            /unable to find image|no such image|pull access denied|manifest unknown/i.test(
+              error,
+            )
+              ? "Sandbox image is missing. Restart RyCruit to build it automatically."
+              : error || "Runner terminated",
+          ),
+        );
       }
     });
     child.stdin.on("error", () => {});

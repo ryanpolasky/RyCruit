@@ -8,6 +8,7 @@ type PadInfo = {
   createdBy: string;
   inviteLabel: string | null;
   lastActive: number;
+  expiresAt: number | null;
 };
 type Invite = {
   token: string;
@@ -263,6 +264,7 @@ export function Admin() {
                         <th>Created</th>
                         <th>By</th>
                         <th>Last active</th>
+                        <th>Expires in</th>
                         <th>Actions</th>
                       </tr>
                     </thead>
@@ -278,6 +280,11 @@ export function Admin() {
                             )}
                           </td>
                           <td>{date(pad.lastActive)}</td>
+                          <td>
+                            {pad.expiresAt === null
+                              ? "In use"
+                              : `${Math.max(0, Math.ceil((pad.expiresAt - Date.now()) / 3600000))}h`}
+                          </td>
                           <td className="table-actions">
                             <a href={`/p/${pad.id}`}>Open</a>
                             <button

@@ -10,11 +10,14 @@ import {
   docs,
 } from "@y/websocket-server/utils";
 import { runCode } from "./runner.js";
+import { initializeSandbox, sandboxUnavailable } from "./sandbox-image.js";
 import { createAccessVerifier } from "./auth.js";
 import { accessPage, invitePage } from "./access-page.js";
 import { openStore, starters, validId } from "./store.js";
 
 const store = openStore(process.env.DATA_DIR || "./data");
+store.sweepPads();
+if ((process.env.RUNNER || "docker") === "docker") void initializeSandbox();
 const authenticate = createAccessVerifier();
 const adminEmails = new Set(
   (process.env.ADMIN_EMAILS || "")
@@ -154,7 +157,9 @@ const server = http.createServer(async (req, res) => {
     if (user.status !== "allowed") {
       return html(res, 403, accessPage(email, user.status === "blocked"));
     }
-    return redirect(res, store.createPad(email));
+    const id = store.createPad(email);
+    console.log(`pad created ${id} by ${email}`);
+    return redirect(res, id);
   }
   if (path.startsWith("/i/")) {
     res.setHeader("X-Robots-Tag", "noindex, nofollow");
@@ -224,15 +229,7 @@ const server = http.createServer(async (req, res) => {
           });
         if (!store.exists(id))
           return json(res, 404, { error: "Pad not found" });
-        const doc = docs.get(id);
-        if (doc) {
-          for (const conn of doc.conns.keys()) conn.close(1008, "Pad deleted");
-          docs.delete(id);
-          doc.destroy();
-        }
-        clearTimeout(pending.get(id));
-        pending.delete(id);
-        store.deletePad(id);
+        removePad(id);
         return json(res, 200, { ok: true });
       }
       return json(res, 404, { error: "Not found" });
@@ -259,6 +256,8 @@ const server = http.createServer(async (req, res) => {
         throw new Error("Invalid pad or name");
       if (!store.exists(padId))
         return json(res, 404, { error: "Pad not found" });
+      if ((process.env.RUNNER || "docker") === "docker" && sandboxUnavailable())
+        return json(res, 503, { error: sandboxUnavailable() });
       store.touch(padId);
       const accepted = enqueue(padId, by);
       return json(res, accepted ? 202 : 409, { accepted });
@@ -304,18 +303,42 @@ server.on("upgrade", (req, socket, head) => {
     return;
   }
   store.touch(id);
-  wss.handleUpgrade(req, socket, head, (ws) =>
-    setupWSConnection(ws, req, { docName: id }),
-  );
+  wss.handleUpgrade(req, socket, head, (ws) => {
+    setupWSConnection(ws, req, { docName: id });
+    store.connectPad(id);
+    ws.on("close", () => {
+      if (!docs.get(id)?.conns.size) store.disconnectPad(id);
+    });
+  });
 });
+function removePad(id) {
+  const doc = docs.get(id);
+  if (doc) {
+    for (const conn of doc.conns.keys()) conn.close(1008, "Pad deleted");
+    docs.delete(id);
+    doc.destroy();
+  }
+  clearTimeout(pending.get(id));
+  pending.delete(id);
+  store.deletePad(id);
+}
+const sweep = setInterval(() => {
+  for (const id of store.expiredPads()) if (!busy.has(id)) removePad(id);
+  for (const [id, doc] of docs) if (doc.conns.size) store.touch(id);
+}, 60000);
+sweep.unref();
 server.listen(Number(process.env.PORT || 3001), "0.0.0.0", () =>
   console.log(
     `RyCruit server listening on ${process.env.PORT || 3001} (${process.env.RUNNER || "docker"} runner)`,
   ),
 );
 function shutdown() {
+  clearInterval(sweep);
   for (const timer of pending.values()) clearTimeout(timer);
-  for (const [id, doc] of docs) store.save(id, Y.encodeStateAsUpdate(doc));
+  for (const [id, doc] of docs) {
+    store.save(id, Y.encodeStateAsUpdate(doc));
+    if (doc.conns.size) store.disconnectPad(id);
+  }
   store.close();
   process.exit(0);
 }

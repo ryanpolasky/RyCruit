@@ -35,8 +35,9 @@ export function Landing() {
         </p>
       </main>
       <footer className="landing-footer">
-        <span>Free to use. Pads are saved on this server.</span>
-        <a href="https://ryanpolasky.com">ryanpolasky.com</a>
+        <span>
+          Free to use. Pads are deleted 24 hours after everyone leaves.
+        </span>
       </footer>
     </div>
   );

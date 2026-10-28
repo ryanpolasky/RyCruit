@@ -2,18 +2,18 @@ name: rycruit
 services:
   rycruit:
     image: rycruit
+    container_name: rycruit
     build: .
     environment:
-      RUNNER: docker
-      DATA_DIR: /data
-      CF_ACCESS_TEAM: rpolasky
-      CF_ACCESS_AUD_MEMBER: 93d88fa02a61280d9d9bcc8c77ec0909b4a5cd4061cc47985f7956faf3b76c02
-      CF_ACCESS_AUD_ADMIN: b4e9d79dd7f3e3e67fcbd7a1a915d7214a2bee3911d1c151e91bf4c26d301e07
-      ADMIN_EMAILS: ryanpolasky@hotmail.com
-      ALLOW_UNAUTHENTICATED: "false"
+      - RUNNER=docker
+      - DATA_DIR=/data
+      - TZ=America/Chicago
+      - CF_ACCESS_TEAM=rpolasky
+      - CF_ACCESS_AUD_MEMBER=93d88fa02a61280d9d9bcc8c77ec0909b4a5cd4061cc47985f7956faf3b76c02
+      - CF_ACCESS_AUD_ADMIN=b4e9d79dd7f3e3e67fcbd7a1a915d7214a2bee3911d1c151e91bf4c26d301e07
+      - ADMIN_EMAILS=ryanpolasky@hotmail.com
+      - ALLOW_UNAUTHENTICATED=false
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - rycruit_pads:/data
+      - ./data/rycruit:/data
     restart: unless-stopped
-volumes:
-  rycruit_pads:

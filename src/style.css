@@ -570,6 +570,31 @@ footer {
   gap: 8px;
   height: 408px;
 }
+.preview-slides {
+  display: grid;
+}
+.preview-slide {
+  grid-area: 1 / 1;
+  min-width: 0;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 240ms ease;
+}
+.preview-slide[data-active="true"] {
+  opacity: 1;
+  pointer-events: auto;
+  z-index: 1;
+}
+.preview-language {
+  padding: 0;
+  font-size: inherit;
+  color: var(--muted);
+}
+@media (prefers-reduced-motion: reduce) {
+  .preview-slide {
+    transition: none;
+  }
+}
 .preview-workspace .cm-scroller {
   font-size: 11px;
   line-height: 1.65;

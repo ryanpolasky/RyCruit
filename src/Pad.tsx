@@ -39,7 +39,10 @@ export function Pad({ padId }: { padId: string }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ padId, by: name }),
       });
-      if (!response.ok) throw new Error(await response.text());
+      if (!response.ok) {
+        const result = await response.json().catch(() => null);
+        throw new Error(result?.error || "Could not run code. Try again.");
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not run code");
     }

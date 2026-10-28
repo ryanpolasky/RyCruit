@@ -11,6 +11,7 @@ WORKDIR /app
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 COPY server ./server
+COPY Dockerfile.sandbox ./Dockerfile.sandbox
 COPY package.json ./
 ENV NODE_ENV=production RUNNER=docker DATA_DIR=/data PORT=3001
 EXPOSE 3001

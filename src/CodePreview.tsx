@@ -3,6 +3,9 @@ import { EditorState } from "@codemirror/state";
 import { Decoration, EditorView, WidgetType } from "@codemirror/view";
 import { basicSetup } from "codemirror";
 import { java } from "@codemirror/lang-java";
+import { python } from "@codemirror/lang-python";
+import { cpp } from "@codemirror/lang-cpp";
+import type { Lang } from "./types";
 import { createEditorTheme, useTheme } from "./theme";
 
 class DemoCursor extends WidgetType {
@@ -26,9 +29,11 @@ class DemoCursor extends WidgetType {
 export function CodePreview({
   code,
   cursors = [],
+  language = "java",
 }: {
   code: string;
   cursors?: { name: string; color: string; at: number }[];
+  language?: Lang;
 }) {
   const host = useRef<HTMLDivElement>(null);
   const theme = useTheme();
@@ -53,7 +58,7 @@ export function CodePreview({
           EditorState.readOnly.of(true),
           EditorView.editable.of(false),
           EditorView.lineWrapping,
-          java(),
+          { java, python, cpp }[language](),
           createEditorTheme(theme),
           EditorView.decorations.of(marks),
           EditorView.contentAttributes.of({
@@ -63,6 +68,6 @@ export function CodePreview({
       }),
     });
     return () => view.destroy();
-  }, [code, cursors, theme]);
+  }, [code, cursors, theme, language]);
   return <div className="editor preview-code" ref={host} />;
 }

@@ -4,45 +4,48 @@ The remotely managed tunnel **ND_Basement**, DNS for **rycruit.dev**, and the **
 
 ## Shared Compose
 
-Put the repo at `./RyCruit` beside the shared Compose file. Paste this service and merge the volume declaration into its existing top-level `volumes` section:
+From Ryan's `orb-vpc` Compose directory, the repo is at `../Projects/RyCruit`. Paste this service:
 
 ```yaml
 services:
   rycruit:
     image: rycruit
-    build: ./RyCruit
+    container_name: rycruit
+    build: ../Projects/RyCruit
     environment:
-      RUNNER: docker
-      DATA_DIR: /data
-      CF_ACCESS_TEAM: rpolasky
-      CF_ACCESS_AUD_MEMBER: 93d88fa02a61280d9d9bcc8c77ec0909b4a5cd4061cc47985f7956faf3b76c02
-      CF_ACCESS_AUD_ADMIN: b4e9d79dd7f3e3e67fcbd7a1a915d7214a2bee3911d1c151e91bf4c26d301e07
-      ADMIN_EMAILS: ryanpolasky@hotmail.com
-      ALLOW_UNAUTHENTICATED: "false"
+      - RUNNER=docker
+      - DATA_DIR=/data
+      - TZ=America/Chicago
+      - CF_ACCESS_TEAM=rpolasky
+      - CF_ACCESS_AUD_MEMBER=93d88fa02a61280d9d9bcc8c77ec0909b4a5cd4061cc47985f7956faf3b76c02
+      - CF_ACCESS_AUD_ADMIN=b4e9d79dd7f3e3e67fcbd7a1a915d7214a2bee3911d1c151e91bf4c26d301e07
+      - ADMIN_EMAILS=ryanpolasky@hotmail.com
+      - ALLOW_UNAUTHENTICATED=false
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - rycruit_pads:/data
+      - ./data/rycruit:/data
     restart: unless-stopped
-volumes:
-  rycruit_pads:
 ```
 
 Keep `rycruit` on the same Docker network as cloudflared (the shared Compose default network works). No host port publish is needed. WebSockets use the same tunnel route.
 
-Build the sandbox once on the same Docker daemon, then start the app from the shared Compose directory:
+Start from the shared Compose directory:
 
 ```sh
-(cd RyCruit && docker build -f Dockerfile.sandbox -t rycruit-sandbox .)
 docker compose up -d --build rycruit
 docker compose logs --tail=50 rycruit
 docker compose exec rycruit docker version
 ```
 
-Rebuild the sandbox when `Dockerfile.sandbox` or `server/sandbox.py` changes. The repo's own Compose file is also runnable with `docker compose up -d --build` from the repo; it uses `build: .` and does not publish a host port. For tunnel access, use the shared Compose deployment above.
+At startup, RyCruit inspects `rycruit-sandbox` and builds it through the mounted socket if missing, using files included in the app image. Build progress appears in the logs; Run asks you to try again while it builds. A failed build stays unavailable until restart; check the logs for Docker connectivity or registry errors. Optional prebuild (also use this to refresh an existing image after sandbox changes): `docker build -f ../Projects/RyCruit/Dockerfile.sandbox -t rycruit-sandbox ../Projects/RyCruit`.
+
+The repo's own Compose file is also runnable with `docker compose up -d --build` from the repo; it uses `build: .` and the same bind-mount convention, without publishing a host port. For tunnel access, use the shared Compose deployment above.
 
 ## Runtime and Access
 
-The app image includes the Docker CLI and runs as root. Docker Desktop on macOS exposes a root-owned socket proxy: root in the container is simplest; a non-root override needs matching socket group permissions. Mounting the socket grants host-level Docker privileges. Back up the `rycruit_pads` volume, including SQLite/WAL consistently. If upgrading an existing install, reuse its existing pad volume rather than starting an empty one.
+The app image includes the Docker CLI and runs as root. OrbStack/Docker Desktop on macOS expose a socket proxy: root in the container is simplest; a non-root override needs matching socket group permissions. Mounting the socket grants host-level Docker privileges. SQLite lives in `./data/rycruit`; keep this directory across rebuilds for approvals and invites.
+
+Pads and their content expire 24 hours after the last client disconnects, or creation if never joined. Rejoining resets the countdown on the next final disconnect. SQLite preserves unexpired pads across restarts; expiry is swept at startup and every minute. `PAD_TTL_MS` optionally overrides the default `86400000` milliseconds. Connected pads do not expire. This is row deletion, not secure erasure of old backups or filesystem blocks.
 
 The sign-in app covers `/new` and `/api/me` with email one-time PIN for anyone. These routes accept the member or admin AUD. A first sign-in creates a pending account; Ryan allows or blocks it in Admin's People section. Remove returns an allowed account to pending. Admin emails are always allowed to create pads, but admin routes require an admin-AUD token plus an email in `ADMIN_EMAILS`.
 
