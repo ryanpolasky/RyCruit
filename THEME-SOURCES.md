@@ -14,3 +14,11 @@ Base URL: https://raw.githubusercontent.com/JetBrains/intellij-community/master/
 The web layout adapts Islands' frame/island separation and tool-window tabs to a collaborative pad; it is not an IntelliJ UI port. Fonts are locally served from `@fontsource/inter` and `@fontsource/jetbrains-mono`. Cursor colors are a separate collaborative palette chosen to remain visible on either editor background; cursor labels are white on solid colors.
 
 The header sun/moon button changes only this browser's `rycruit.theme` preference. Without a saved preference the initial theme follows `prefers-color-scheme`. Themes never enter the shared Y.Doc.
+
+## Run green brand
+
+The green play mark, bold Ry and regular Cruit wordmark are shared by the SPA and server-rendered pages. Islands frame, editor selection and syntax colors stay unchanged. Active tabs, focus rings, primary buttons and native controls use the green brand palette.
+
+Run green comes from `ManyIslandsDark.theme.json`'s `icon-green-stroke` → `green-90` (`#4E9D6C`) and `ManyIslandsLight.theme.json`'s `icon-green-stroke` → `green-80` (`#338555`). Dark's `runIconColor` points to that icon token. Green buttons use dark ink in Dark and white ink in Light for text contrast.
+
+Primary-button text exceeds 4.5:1 contrast in both themes, including hover states. Small accent text uses `#6DB083` in Dark and `#2A6E47` in Light for readable links on the frame and islands. Favicons follow the saved theme, falling back to the system preference.

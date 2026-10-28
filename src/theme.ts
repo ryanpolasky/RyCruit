@@ -2,6 +2,7 @@ import { useSyncExternalStore } from "react";
 import { EditorView } from "@codemirror/view";
 import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
 import { tags } from "@lezer/highlight";
+import { updateFavicon } from "./brand";
 
 export type Theme = "dark" | "light";
 const saved = localStorage.getItem("rycruit.theme");
@@ -12,6 +13,7 @@ let current: Theme =
       ? "dark"
       : "light";
 document.documentElement.dataset.theme = current;
+updateFavicon(current);
 const listeners = new Set<() => void>();
 function subscribe(listener: () => void) {
   listeners.add(listener);
@@ -26,6 +28,7 @@ export function toggleTheme() {
   current = current === "dark" ? "light" : "dark";
   localStorage.setItem("rycruit.theme", current);
   document.documentElement.dataset.theme = current;
+  updateFavicon(current);
   listeners.forEach((listener) => listener());
 }
 const palettes = {

@@ -5,6 +5,7 @@ import { mkdir } from "node:fs/promises";
 import { generateKeyPair, exportJWK, SignJWT } from "jose";
 import { chromium } from "playwright-core";
 import { startServer, stopServer } from "./helpers.js";
+import { checkBrand } from "./brand-appearance.js";
 
 const { publicKey, privateKey } = await generateKeyPair("RS256");
 const jwk = { ...(await exportJWK(publicKey)), kid: "members" };
@@ -82,10 +83,11 @@ async function appearance(page, theme) {
   assert.match(actual.mono, /JetBrains Mono/);
   if (actual.action)
     assert.deepEqual(actual.action, {
-      background: "rgb(56, 113, 225)",
+      background: theme === "dark" ? "rgb(78, 157, 108)" : "rgb(51, 133, 85)",
       decoration: "none",
       radius: "6px",
     });
+  await checkBrand(page, theme);
 }
 try {
   const pending = await request("/new");
@@ -300,6 +302,11 @@ try {
   await appearance(page, "dark");
   await adminPage.screenshot({
     path: new URL("admin-people-dark.png", shots).pathname,
+    fullPage: true,
+  });
+  await checkBrand(adminPage, "dark");
+  await adminPage.screenshot({
+    path: new URL("brand-admin-dark.png", shots).pathname,
     fullPage: true,
   });
   await adminPage.route("**/api/admin/users/shua%40example.com", (route) =>

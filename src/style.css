@@ -16,9 +16,10 @@
   --border: #33353b;
   --island-border: #26282c;
   --hover: #ffffff17;
-  --accent: #3871e1;
-  --accent-hover: #2f5eb9;
-  --accent-ink: #ffffff;
+  --accent: #4e9d6c;
+  --accent-hover: #6db083;
+  --accent-ink: #111c15;
+  --accent-text: #6db083;
   --success: #6db083;
   --error: #f57e84;
   --active-line: #1f2024;
@@ -26,7 +27,7 @@
   --caret: #ced0d6;
   --line-number: #4b5059;
   --line-number-active: #a1a3ab;
-  --tab-selected: #233558;
+  --tab-selected: #203b2a;
   --overlay: #191a1cee;
 }
 :root[data-theme="light"] {
@@ -41,9 +42,10 @@
   --border: #d1d3d9;
   --island-border: #e9eaee;
   --hover: #00000012;
-  --accent: #3871e1;
-  --accent-hover: #2f5eb9;
+  --accent: #338555;
+  --accent-hover: #2a6e47;
   --accent-ink: #ffffff;
+  --accent-text: #2a6e47;
   --success: #338555;
   --error: #c54e58;
   --active-line: #f5f8fe;
@@ -51,11 +53,12 @@
   --caret: #000000;
   --line-number: #aeb3c2;
   --line-number-active: #767a8a;
-  --tab-selected: #e3ebfe;
+  --tab-selected: #e2efe2;
   --overlay: #e9eaeeee;
 }
 :root {
   font-family: var(--ui);
+  accent-color: var(--accent);
   color: var(--text);
   background: var(--bg);
   font-synthesis: none;
@@ -101,8 +104,29 @@ a {
   letter-spacing: -1px;
   white-space: nowrap;
 }
-.wordmark > span:first-child {
+.wordmark {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  flex-shrink: 0;
+}
+.brand-name {
+  display: inline-flex;
+  align-items: center;
+  color: var(--text);
+}
+.brand-mark {
+  width: 21px;
+  height: 25px;
   color: var(--accent);
+  flex-shrink: 0;
+}
+.brand-ry {
+  color: var(--accent);
+  font-weight: 700;
+}
+.brand-cruit {
+  font-weight: 400;
 }
 .primary {
   background: var(--accent);
@@ -317,7 +341,7 @@ pre {
   padding: 14px;
   background: var(--surface);
   border-radius: var(--radius);
-  color: var(--accent);
+  color: var(--accent-text);
   font-size: 12px;
   margin-bottom: 20px;
 }
@@ -873,7 +897,7 @@ td {
   gap: 12px;
 }
 .table-actions a {
-  color: var(--accent);
+  color: var(--accent-text);
   padding: 6px 0;
 }
 .table-actions button {
