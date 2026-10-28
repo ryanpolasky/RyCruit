@@ -9,7 +9,12 @@ export const languageInfo = {
   html: { label: "HTML · Live preview", filename: "index.html" },
 };
 export type Lang = keyof typeof languageInfo;
-export type Person = { name: string; color: string; colorLight: string };
+export type Person = {
+  id?: string;
+  name: string;
+  color: string;
+  colorLight: string;
+};
 export type Result = {
   lang: string;
   by: string;

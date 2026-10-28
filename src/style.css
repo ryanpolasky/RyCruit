@@ -871,6 +871,19 @@ input:focus-visible {
     height: 26px;
   }
 }
+@media (max-width: 360px) {
+  header {
+    column-gap: 4px;
+    padding: 10px;
+  }
+  header select {
+    width: 92px;
+    padding: 8px 5px;
+  }
+  .run {
+    padding: 8px;
+  }
+}
 .status-page {
   padding: 60px 0;
 }

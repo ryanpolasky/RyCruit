@@ -35,22 +35,56 @@ try {
   });
   await until(() => provider.synced);
   const contexts = await Promise.all(
-    ["dark", "dark", "light"].map(async (theme) => {
+    ["dark", "light"].map(async (theme) => {
       const context = await browser.newContext({
         viewport: { width: 1440, height: 900 },
         colorScheme: theme,
       });
-      await context.addInitScript(() => {
-        if (window === window.top) localStorage.setItem("rycruit.name", "Ryan");
-      });
+      await context.addInitScript(
+        (name) => {
+          if (window === window.top) localStorage.setItem("rycruit.name", name);
+        },
+        theme === "dark" ? "Ryan" : "Alex",
+      );
       return context;
     }),
   );
-  const [a, b, light] = await Promise.all(
-    contexts.map((context) => context.newPage()),
-  );
+  const [a, b, light] = await Promise.all([
+    contexts[0].newPage(),
+    contexts[0].newPage(),
+    contexts[1].newPage(),
+  ]);
   await Promise.all([a, b, light].map((page) => page.goto(`${base}/p/${pad}`)));
   await a.getByText("● Live", { exact: true }).waitFor();
+  await a.locator('.presence small[aria-label="2 tabs"]').waitFor();
+  await a.locator(".presence > span").filter({ hasText: "Alex" }).waitFor();
+  assert.equal(await a.locator(".presence > span").count(), 2);
+  await b.locator(".code-pane .cm-line").nth(3).click();
+  await b.keyboard.press("Home");
+  await light.locator(".code-pane .cm-line").nth(2).click();
+  await light.keyboard.press("Home");
+  await a.waitForFunction(
+    () =>
+      document.querySelectorAll(".code-pane .cm-ySelectionCaret").length === 2,
+  );
+  await a.bringToFront();
+  await a.screenshot({ path: "shots/presence-tabs-dark.png" });
+  await b.reload();
+  await b.getByText("● Live", { exact: true }).waitFor();
+  await a.locator('.presence small[aria-label="2 tabs"]').waitFor();
+  assert.equal(await a.locator(".presence > span").count(), 2);
+  await b.close();
+  await a.waitForFunction(
+    () =>
+      document.querySelectorAll(".presence > span").length === 2 &&
+      !document.querySelector(".presence small"),
+  );
+  console.log(
+    "PASS presence: two tabs share one identity/chip with ×2, another user stays separate, both remote cursors render; reload preserves identity and closing a tab updates count",
+  );
+  const second = await contexts[0].newPage();
+  await second.goto(`${base}/p/${pad}`);
+  await second.getByText("● Live", { exact: true }).waitFor();
   assert.equal(
     await a.locator('select[aria-label="Language"] option').count(),
     8,
@@ -59,13 +93,14 @@ try {
   await a.getByText("main.go", { exact: true }).waitFor();
   await a.locator("button.run").click();
   await a.locator(".output pre").filter({ hasText: "Hello, world!" }).waitFor();
+  await a.bringToFront();
   await a.screenshot({ path: "shots/pad-go-dark.png" });
   console.log(
     "PASS Go browser: versioned dropdown, main.go starter runs in Docker and shared output is visible",
   );
   await a.getByLabel("Language", { exact: true }).selectOption("html");
   await Promise.all(
-    [a, b, light].map((page) =>
+    [a, second, light].map((page) =>
       page.locator('iframe[title="HTML preview"]').waitFor(),
     ),
   );
@@ -77,6 +112,9 @@ try {
     await a.getByRole("button", { name: "Stdin", exact: true }).count(),
     0,
   );
+  assert.equal(await a.locator(".tabs button").count(), 1);
+  assert.equal(await a.getByRole("button", { name: /^Output/ }).count(), 0);
+  assert.equal(await a.locator(".output").count(), 0);
   await a
     .frameLocator("iframe")
     .getByRole("button", { name: "Say hello" })
@@ -85,15 +123,17 @@ try {
     .locator(".console-lines")
     .getByText("Hello from the button!", { exact: true })
     .waitFor();
-  await b
+  await second
     .frameLocator("iframe")
     .getByRole("heading", { name: "Hello, web!" })
     .waitFor();
+  await a.bringToFront();
   await a.screenshot({ path: "shots/pad-html-dark.png" });
   await light
     .locator(".console-lines")
     .getByText("Page ready", { exact: true })
     .waitFor();
+  await light.bringToFront();
   await light.screenshot({ path: "shots/pad-html-light.png" });
   const result = await fetch(`${base}/api/run`, {
     method: "POST",
@@ -122,7 +162,7 @@ try {
     );
   });
   await Promise.all(
-    [a, b].map((page) =>
+    [a, light].map((page) =>
       page
         .frameLocator("iframe")
         .getByRole("heading", { name: "Shared HTML" })
@@ -207,8 +247,11 @@ try {
     0,
   );
   await a.getByRole("button", { name: "Stdin", exact: true }).waitFor();
+  await a.getByRole("button", { name: /^Output/ }).waitFor();
+  await a.locator(".output pre").filter({ hasText: "Hello, world!" }).waitFor();
+  assert.equal(await a.locator(".output article").count(), 1);
   console.log(
-    "PASS language switching: returning to runnable code restores Output/Stdin and preserves independent buffers",
+    "PASS language switching: HTML shows only Preview/console; runnable mode restores Output/Stdin with the original Go history intact",
   );
   const { starters } = await import("../server/store.js");
   doc.transact(() => {
@@ -224,7 +267,7 @@ try {
     colorScheme: "light",
   });
   await mobile.addInitScript(() => {
-    if (window === window.top) localStorage.setItem("rycruit.name", "Alex");
+    if (window === window.top) localStorage.setItem("rycruit.name", "Sam");
   });
   const phone = await mobile.newPage();
   await phone.goto(`${base}/p/${pad}`);
@@ -232,6 +275,51 @@ try {
     .frameLocator("iframe")
     .getByRole("heading", { name: "Hello, web!" })
     .waitFor();
+  assert.equal(
+    await phone.locator("select option:checked").textContent(),
+    "HTML",
+  );
+  for (const width of [320, 390]) {
+    await phone.setViewportSize({ width, height: 844 });
+    for (const lang of [
+      "python",
+      "cpp",
+      "java",
+      "javascript",
+      "typescript",
+      "go",
+      "ruby",
+      "html",
+    ]) {
+      await phone.getByLabel("Language", { exact: true }).selectOption(lang);
+      assert(
+        await phone.locator("select").evaluate((select) => {
+          const style = getComputedStyle(select),
+            canvas = document.createElement("canvas");
+          const context = canvas.getContext("2d");
+          context.font = style.font;
+          return (
+            context.measureText(select.selectedOptions[0].text).width <=
+            select.clientWidth -
+              parseFloat(style.paddingLeft) -
+              parseFloat(style.paddingRight) -
+              18
+          );
+        }),
+        `${lang} mobile label fits`,
+      );
+      assert(
+        await phone.evaluate(
+          () => document.documentElement.scrollWidth <= innerWidth,
+        ),
+      );
+    }
+  }
+  await phone
+    .frameLocator("iframe")
+    .getByRole("heading", { name: "Hello, web!" })
+    .waitFor();
+  await phone.bringToFront();
   await phone.screenshot({
     path: "shots/pad-html-mobile-light.png",
     fullPage: true,
@@ -252,16 +340,17 @@ try {
     process.stdin.pause();
   }
   console.log(
-    "PASS HTML mobile: preview and local console rendered at 390x844 without page overflow",
+    "PASS HTML mobile: all eight short labels fit at 320px/390px without overflow; light preview and console captured at 390x844",
   );
 } catch (error) {
+  console.error(error);
   const page = browser.contexts()[0]?.pages()[0];
   if (page) {
     console.error(
       "HTML test frame diagnostics",
       await page
         .locator("iframe")
-        .getAttribute("srcdoc")
+        .getAttribute("srcdoc", { timeout: 1000 })
         .catch(() => "no iframe"),
     );
     for (const frame of page.frames().slice(1))
@@ -272,7 +361,9 @@ try {
           .innerHTML()
           .catch(() => "no body"),
       );
-    await page.screenshot({ path: "shots/html-test-failure.png" });
+    await page
+      .screenshot({ path: "shots/html-test-failure.png", timeout: 5000 })
+      .catch(() => {});
   }
   throw error;
 } finally {
