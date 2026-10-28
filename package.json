@@ -13,6 +13,7 @@
     "test:collaboration": "node tests/collaboration.js"
   },
   "dependencies": {
+    "@codemirror/autocomplete": "^6.20.4",
     "@codemirror/lang-cpp": "^6.0.0",
     "@codemirror/lang-java": "^6.0.0",
     "@codemirror/lang-python": "^6.0.0",

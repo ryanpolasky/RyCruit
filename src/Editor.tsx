@@ -4,6 +4,7 @@ import { WebsocketProvider } from "y-websocket";
 import { Compartment, EditorState } from "@codemirror/state";
 import { EditorView, keymap } from "@codemirror/view";
 import { basicSetup } from "codemirror";
+import { autocompletion } from "@codemirror/autocomplete";
 import { python } from "@codemirror/lang-python";
 import { cpp } from "@codemirror/lang-cpp";
 import { javaLanguage } from "@codemirror/lang-java";
@@ -58,6 +59,7 @@ export function Editor({
         doc: text.toString(),
         extensions: [
           basicSetup,
+          autocompletion({ activateOnTyping: false, override: [] }),
           EditorView.lineWrapping,
           themeSlot.current.of(createEditorTheme(themeRef.current)),
           ...(lang ? [languages[lang]()] : []),
