@@ -22,7 +22,7 @@ class Main {
 }`;
 
 const examples: {
-  language: Lang;
+  language: Extract<Lang, "java" | "cpp" | "python">;
   filename: string;
   label: string;
   code: string;

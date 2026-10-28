@@ -37,7 +37,9 @@ docker compose logs --tail=50 rycruit
 docker compose exec rycruit docker version
 ```
 
-At startup, RyCruit inspects `rycruit-sandbox` and builds it through the mounted socket if missing, using files included in the app image. Build progress appears in the logs; Run asks you to try again while it builds. A failed build stays unavailable until restart; check the logs for Docker connectivity or registry errors. Optional prebuild (also use this to refresh an existing image after sandbox changes): `docker build -f ../Projects/RyCruit/Dockerfile.sandbox -t rycruit-sandbox ../Projects/RyCruit`.
+At startup, RyCruit compares `rycruit-sandbox`'s `dev.rycruit.sandbox-hash` label with its bundled Dockerfile and sandbox source. Missing or outdated images rebuild through the mounted socket, so this language update also upgrades existing installs. Build progress appears in the logs; Run asks you to try again while it builds. A failed build stays unavailable until restart; check the logs for Docker connectivity or registry errors. If Docker Hub is rate-limited, add `SANDBOX_BASE_IMAGE=mirror.gcr.io/library/debian:bookworm-slim` to the service environment and restart it.
+
+The sandbox includes Python 3, C++20, Java 17, Node 18, esbuild 0.17, Go 1.19 and Ruby 3.1. TypeScript transpiles offline without type checking. No package installation or network access is available during runs. Go builds in the per-run tmpfs with downloads disabled. Compilation gets 10 seconds; runtime gets 5 seconds and 256MB memory. HTML is rendered independently in each browser's isolated, network-restricted iframe; it never reaches the code runner. Inline styles/scripts work, and Refresh resets the local preview and console.
 
 The repo's own Compose file is also runnable with `docker compose up -d --build` from the repo; it uses `build: .` and the same bind-mount convention, without publishing a host port. For tunnel access, use the shared Compose deployment above.
 

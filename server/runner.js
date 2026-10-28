@@ -5,6 +5,8 @@ import { sandboxImage, sandboxUnavailable } from "./sandbox-image.js";
 
 export function runCode(input, mode = process.env.RUNNER || "docker") {
   return new Promise((resolve, reject) => {
+    if (input.lang === "html")
+      return reject(new Error("HTML uses the live preview, not the runner"));
     const name = `rycruit-${randomUUID()}`;
     const docker = mode === "docker";
     if (docker && sandboxUnavailable())
@@ -12,6 +14,7 @@ export function runCode(input, mode = process.env.RUNNER || "docker") {
     const args = docker
       ? [
           "run",
+          "--pull=never",
           "--rm",
           "--name",
           name,
@@ -25,7 +28,7 @@ export function runCode(input, mode = process.env.RUNNER || "docker") {
           "1",
           "--read-only",
           "--tmpfs",
-          "/tmp:exec,size=64m",
+          "/tmp:exec,size=128m",
           "--user",
           "65534",
           "-i",

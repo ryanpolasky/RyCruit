@@ -1,9 +1,9 @@
 import { useState } from "react";
 import * as Y from "yjs";
 import type { Lang, Person } from "./types";
+import { languageInfo } from "./types";
 import { Wordmark } from "./Wordmark";
 import { ThemeToggle } from "./ThemeToggle";
-const labels = { python: "Python 3", cpp: "C++ 20", java: "Java 17" };
 type Props = {
   padId: string;
   safeLang: Lang;
@@ -62,11 +62,18 @@ export function Header({
         value={safeLang}
         onChange={(e) => meta.set("language", e.target.value)}
       >
-        {Object.entries(labels).map(([id, label]) => (
-          <option key={id} value={id}>
-            {label}
-          </option>
-        ))}
+        <optgroup label="Run code">
+          {Object.entries(languageInfo)
+            .filter(([id]) => id !== "html")
+            .map(([id, { label }]) => (
+              <option key={id} value={id}>
+                {label}
+              </option>
+            ))}
+        </optgroup>
+        <optgroup label="Web">
+          <option value="html">{languageInfo.html.label}</option>
+        </optgroup>
       </select>
       <div className="timer">
         <span>
@@ -102,10 +109,12 @@ export function Header({
       <ThemeToggle />
       <button
         className="primary run"
-        disabled={Boolean(running) || !connected || !name}
+        disabled={
+          (safeLang !== "html" && Boolean(running)) || !connected || !name
+        }
         onClick={run}
       >
-        {running ? "Running…" : "Run"}
+        {safeLang === "html" ? "Refresh" : running ? "Running…" : "Run"}
         <kbd>⌘ / Ctrl ↵</kbd>
       </button>
     </header>

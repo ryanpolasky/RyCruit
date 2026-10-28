@@ -2,11 +2,11 @@ import json, os, re, signal, subprocess, sys, tempfile, time, resource
 
 LIMIT = 65536
 
-def execute(command, stdin, seconds, java=False):
+def execute(command, stdin, seconds, managed=False):
     start = time.monotonic()
     def limits():
         resource.setrlimit(resource.RLIMIT_FSIZE, (16 * 1024 * 1024, 16 * 1024 * 1024))
-        if not java:
+        if not managed:
             resource.setrlimit(resource.RLIMIT_AS, (256 * 1024 * 1024, 256 * 1024 * 1024))
     with tempfile.TemporaryFile() as out, tempfile.TemporaryFile() as err:
         process = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=out, stderr=err, start_new_session=True, preexec_fn=limits)
@@ -54,15 +54,26 @@ def run(request):
             flags = ['-Xms16m', '-Xmx128m', '-XX:MaxMetaspaceSize=64m', '-XX:ReservedCodeCacheSize=32m', '-XX:+UseSerialGC', '-XX:ActiveProcessorCount=1']
             command = ['java', *flags, target]
             compile_command = ['javac', *['-J'+flag for flag in flags], filename]
+        elif lang == 'javascript':
+            filename, command = 'main.js', ['node', '--max-old-space-size=128', 'main.js']
+        elif lang == 'typescript':
+            filename, command = 'main.ts', ['node', '--max-old-space-size=128', 'main.js']
+            compile_command = ['esbuild', filename, '--platform=node', '--format=cjs', '--outfile=main.js']
+        elif lang == 'go':
+            filename, command = 'main.go', ['./main']
+            os.environ.update(GOCACHE=directory+'/go-cache', GOPATH=directory+'/go', GO111MODULE='off', GOPROXY='off', GOTOOLCHAIN='local', GOMAXPROCS='1', GOMEMLIMIT='128MiB')
+            compile_command = ['go', 'build', '-p=1', '-o', 'main', filename]
+        elif lang == 'ruby':
+            filename, command = 'main.rb', ['ruby', 'main.rb']
         else:
             raise ValueError('Unsupported language')
         with open(filename, 'w') as source:
             source.write(code)
         if compile_command:
-            compiled = execute(compile_command, '', 10, java=lang == 'java')
+            compiled = execute(compile_command, '', 10, managed=lang in ('java', 'go', 'typescript'))
             if compiled['exitCode'] != 0:
                 return dict(compiled, compileError=True)
-        return execute(command, stdin, 5, java=lang == 'java')
+        return execute(command, stdin, 5, managed=lang in ('java', 'go', 'javascript', 'typescript'))
 
 try:
     print(json.dumps(run(json.load(sys.stdin))))

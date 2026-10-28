@@ -1,4 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { languageInfo } from "./types";
+import { HtmlPreview } from "./HtmlPreview";
 import type { Lang, Person, Result } from "./types";
 import { usePadSession } from "./usePadSession";
 import { Header } from "./Header";
@@ -13,9 +15,14 @@ export function Pad({ padId }: { padId: string }) {
   const { doc, provider, connected, now } = usePadSession(padId, name);
   const [tab, setTab] = useState("output");
   const [error, setError] = useState("");
+  const [refresh, setRefresh] = useState(0);
   const meta = doc.getMap("meta");
   const lang = (meta.get("language") || "python") as Lang;
-  const safeLang = ["python", "cpp", "java"].includes(lang) ? lang : "python";
+  const safeLang = Object.hasOwn(languageInfo, lang) ? lang : "python";
+  useEffect(() => {
+    setTab(safeLang === "html" ? "preview" : "output");
+    setError("");
+  }, [safeLang]);
   const running = meta.get("running") as { by: string } | undefined;
   const results = doc
     .getArray<Result>("results")
@@ -30,6 +37,11 @@ export function Pad({ padId }: { padId: string }) {
     ((meta.get("elapsed") as number) || 0) + (startedAt ? now - startedAt : 0);
   const seconds = Math.max(0, Math.floor(elapsed / 1000));
   async function run() {
+    if (safeLang === "html") {
+      setRefresh((value) => value + 1);
+      setTab("preview");
+      return;
+    }
     if (!name || running || !connected) return;
     setTab("output");
     setError("");
@@ -77,13 +89,7 @@ export function Pad({ padId }: { padId: string }) {
       <div className="workspace">
         <section className="code-pane">
           <div className="pane-bar">
-            <span>
-              {safeLang === "python"
-                ? "main.py"
-                : safeLang === "cpp"
-                  ? "main.cpp"
-                  : "Main.java"}
-            </span>
+            <span>{languageInfo[safeLang].filename}</span>
             <span className={connected ? "online" : ""}>
               {connected ? "● Live" : "○ Connecting…"}
             </span>
@@ -97,11 +103,20 @@ export function Pad({ padId }: { padId: string }) {
           />
         </section>
         <OutputPane
+          preview={
+            safeLang === "html" ? (
+              <HtmlPreview doc={doc} refresh={refresh} />
+            ) : undefined
+          }
           {...{ doc, provider, run, tab, setTab, results, error, running }}
         />
       </div>
       <footer>
-        <span>5s runtime · 256MB memory · last 20 runs</span>
+        <span>
+          {safeLang === "html"
+            ? "Live preview · isolated in your browser · no network access"
+            : "5s runtime · 256MB memory · last 20 runs"}
+        </span>
       </footer>
       {!name && (
         <div className="overlay">

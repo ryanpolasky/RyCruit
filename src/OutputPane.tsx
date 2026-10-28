@@ -2,6 +2,7 @@ import * as Y from "yjs";
 import { WebsocketProvider } from "y-websocket";
 import type { Result } from "./types";
 import { Editor } from "./Editor";
+import type { ReactNode } from "react";
 type Props = {
   doc: Y.Doc;
   provider: WebsocketProvider;
@@ -11,6 +12,7 @@ type Props = {
   results: Result[];
   error: string;
   running: { by: string } | undefined;
+  preview?: ReactNode;
 };
 export function OutputPane({
   doc,
@@ -21,24 +23,37 @@ export function OutputPane({
   results,
   error,
   running,
+  preview,
 }: Props) {
   return (
     <section className="side-pane">
       <div className="tabs">
+        {preview && (
+          <button
+            className={tab === "preview" ? "active" : ""}
+            onClick={() => setTab("preview")}
+          >
+            Preview
+          </button>
+        )}
         <button
           className={tab === "output" ? "active" : ""}
           onClick={() => setTab("output")}
         >
           Output {results.length > 0 && <span>{results.length}</span>}
         </button>
-        <button
-          className={tab === "stdin" ? "active" : ""}
-          onClick={() => setTab("stdin")}
-        >
-          Stdin
-        </button>
+        {!preview && (
+          <button
+            className={tab === "stdin" ? "active" : ""}
+            onClick={() => setTab("stdin")}
+          >
+            Stdin
+          </button>
+        )}
       </div>
-      {tab === "stdin" ? (
+      {preview && tab === "preview" ? (
+        preview
+      ) : tab === "stdin" && !preview ? (
         <>
           <div className="hint">Shared stdin for the next run</div>
           <Editor doc={doc} provider={provider} field="stdin" onRun={run} />

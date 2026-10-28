@@ -5,7 +5,10 @@ import { join } from "node:path";
 const directory = process.env.TEST_DOCKER_DIRECTORY;
 const args = process.argv.slice(2);
 if (args[0] === "image" && args[1] === "inspect") {
-  if (existsSync(join(directory, "ready"))) process.exit(0);
+  if (existsSync(join(directory, "ready"))) {
+    console.log(readFileSync(join(directory, "ready"), "utf8"));
+    process.exit(0);
+  }
   console.error("Error response from daemon: No such image: rycruit-sandbox");
   process.exit(1);
 }
@@ -29,7 +32,10 @@ if (args[0] === "build") {
       console.error("Test Docker build failed: registry unavailable");
       process.exit(1);
     }
-    writeFileSync(join(directory, "ready"), "ready");
+    writeFileSync(
+      join(directory, "ready"),
+      args.find((arg) => arg.startsWith("RYCRUIT_SANDBOX_HASH=")).split("=")[1],
+    );
     process.exit(0);
   }, 20);
 } else {

@@ -6,6 +6,13 @@ import * as Y from "yjs";
 export const validId = (id) =>
   typeof id === "string" && /^[a-zA-Z0-9_-]{4,32}$/.test(id);
 export const starters = {
+  javascript:
+    'const fs = require("node:fs");\n\nconsole.log("Hello, world!");\nprocess.stdout.write(fs.readFileSync(0, "utf8"));\n',
+  typescript:
+    'const fs = require("node:fs");\n\nconst greeting: string = "Hello, world!";\nconsole.log(greeting);\nprocess.stdout.write(fs.readFileSync(0, "utf8"));\n',
+  go: 'package main\n\nimport (\n    "fmt"\n    "io"\n    "os"\n)\n\nfunc main() {\n    fmt.Println("Hello, world!")\n    io.Copy(os.Stdout, os.Stdin)\n}\n',
+  ruby: 'puts "Hello, world!"\nprint STDIN.read\n',
+  html: '<!doctype html>\n<html lang="en">\n<head>\n  <meta charset="utf-8">\n  <title>My page</title>\n  <style>\n    body { font-family: system-ui; padding: 24px; color: #242629; }\n    button { background: #338555; color: white; border: 0; padding: 10px 16px; cursor: pointer; }\n  </style>\n</head>\n<body>\n  <h1>Hello, web!</h1>\n  <p>Edit the HTML, CSS or script and see it here.</p>\n  <button id="hello">Say hello</button>\n  <script>\n    console.log("Page ready");\n    document.querySelector("#hello").onclick = () => {\n      console.log("Hello from the button!");\n      document.querySelector("h1").textContent = "Hello, friend!";\n    };\n  </script>\n</body>\n</html>\n',
   python:
     'import sys\n\nprint("Hello, world!")\nprint(sys.stdin.read(), end="")\n',
   cpp: '#include <iostream>\n#include <string>\n\nint main() {\n    std::cout << "Hello, world!\\n";\n    std::string line;\n    while (std::getline(std::cin, line)) std::cout << line << "\\n";\n}\n',

@@ -3,7 +3,7 @@ import { execFileSync } from "node:child_process";
 
 const image = `rycruit-sandbox-autobuild-${process.pid}`;
 process.env.SANDBOX_IMAGE = image;
-const { initializeSandbox, sandboxUnavailable } =
+const { initializeSandbox, sandboxUnavailable, sandboxSourceHash } =
   await import("../server/sandbox-image.js");
 const { runCode } = await import("../server/runner.js");
 assert.throws(() =>
@@ -22,6 +22,34 @@ try {
   assert.equal(await building, true);
   assert.equal(sandboxUnavailable(), null);
   execFileSync("docker", ["image", "inspect", image], { stdio: "pipe" });
+  assert.equal(
+    execFileSync(
+      "docker",
+      [
+        "image",
+        "inspect",
+        "--format",
+        '{{ index .Config.Labels "dev.rycruit.sandbox-hash" }}',
+        image,
+      ],
+      { encoding: "utf8" },
+    ).trim(),
+    await sandboxSourceHash(),
+  );
+  const recheck = execFileSync(
+    process.execPath,
+    [
+      "--input-type=module",
+      "-e",
+      "import {initializeSandbox} from './server/sandbox-image.js'; if(!await initializeSandbox())process.exitCode=1",
+    ],
+    { encoding: "utf8" },
+  );
+  assert(recheck.includes("is ready"));
+  assert(!recheck.includes("building it now"));
+  console.log(
+    "PASS Docker source hash: built image is labeled; next startup reuses current image without rebuilding",
+  );
   const result = await runCode(
     { lang: "python", code: "print('automatic build works')" },
     "docker",

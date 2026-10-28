@@ -30,6 +30,8 @@ const pending = new Map();
 setContentInitializor((doc) => {
   if (!store.exists(doc.name)) throw new Error("Pad not found");
   Y.applyUpdate(doc, store.load(doc.name).state);
+  for (const [lang, code] of Object.entries(starters))
+    if (!doc.share.has(lang)) doc.getText(lang).insert(0, code);
   doc.getMap("meta").delete("running");
   doc.on("update", () => {
     clearTimeout(pending.get(doc.name));
@@ -62,6 +64,8 @@ function enqueue(padId, by) {
   const doc = getYDoc(padId),
     meta = doc.getMap("meta");
   const lang = meta.get("language");
+  if (lang === "html")
+    throw new Error("HTML uses the live preview, not the runner");
   if (!Object.hasOwn(starters, lang)) throw new Error("Invalid language");
   const input = {
     lang,
@@ -256,6 +260,10 @@ const server = http.createServer(async (req, res) => {
         throw new Error("Invalid pad or name");
       if (!store.exists(padId))
         return json(res, 404, { error: "Pad not found" });
+      if (getYDoc(padId).getMap("meta").get("language") === "html")
+        return json(res, 400, {
+          error: "HTML uses the live preview, not the runner",
+        });
       if ((process.env.RUNNER || "docker") === "docker" && sandboxUnavailable())
         return json(res, 503, { error: sandboxUnavailable() });
       store.touch(padId);

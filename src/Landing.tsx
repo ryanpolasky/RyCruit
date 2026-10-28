@@ -20,9 +20,7 @@ export function Landing() {
               <br />
               in a shared editor.
             </h1>
-            <p>
-              Send a link. Write and run Python, C++ or Java in the same pad.
-            </p>
+            <p>Write and run code together, or build a web page live.</p>
           </div>
           <a className="primary new-pad" href="/new">
             New pad

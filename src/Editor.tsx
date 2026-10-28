@@ -7,13 +7,22 @@ import { basicSetup } from "codemirror";
 import { autocompletion } from "@codemirror/autocomplete";
 import { python } from "@codemirror/lang-python";
 import { cpp } from "@codemirror/lang-cpp";
+import { javascript } from "@codemirror/lang-javascript";
+import { html } from "@codemirror/lang-html";
+import { go } from "@codemirror/legacy-modes/mode/go";
+import { ruby } from "@codemirror/legacy-modes/mode/ruby";
 import { javaLanguage } from "@codemirror/lang-java";
-import { LanguageSupport } from "@codemirror/language";
+import { LanguageSupport, StreamLanguage } from "@codemirror/language";
 import { styleTags, tags } from "@lezer/highlight";
 import { yCollab } from "y-codemirror.next";
 import type { Lang } from "./types";
 import { createEditorTheme, useTheme } from "./theme";
 const languages = {
+  javascript,
+  typescript: () => javascript({ typescript: true }),
+  html,
+  go: () => StreamLanguage.define(go),
+  ruby: () => StreamLanguage.define(ruby),
   python,
   cpp,
   java: () =>

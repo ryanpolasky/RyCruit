@@ -1,16 +1,25 @@
 import { spawn } from "node:child_process";
-import { mkdtemp, mkdir, copyFile, rm } from "node:fs/promises";
+import { mkdtemp, mkdir, copyFile, rm, readFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 export const sandboxImage = process.env.SANDBOX_IMAGE || "rycruit-sandbox";
 let status = "idle";
 let initialization;
+export async function sandboxSourceHash() {
+  const hash = createHash("sha256");
+  for (const file of ["../Dockerfile.sandbox", "./sandbox.py"])
+    hash.update(await readFile(new URL(file, import.meta.url)));
+  return hash.digest("hex");
+}
 function docker(args, progress = false) {
   return new Promise((resolve, reject) => {
     const child = spawn("docker", args, { stdio: ["ignore", "pipe", "pipe"] });
-    let error = "";
+    let error = "",
+      output = "";
     child.stdout.on("data", (chunk) => {
+      output += chunk;
       if (progress) process.stdout.write(chunk);
     });
     child.stderr.on("data", (chunk) => {
@@ -20,7 +29,7 @@ function docker(args, progress = false) {
     child.on("error", reject);
     child.on("close", (code) =>
       code === 0
-        ? resolve()
+        ? resolve(output.trim())
         : reject(new Error(error || `Docker exited ${code}`)),
     );
   });
@@ -38,13 +47,23 @@ export function initializeSandbox() {
   initialization = (async () => {
     let directory;
     try {
+      const hash = await sandboxSourceHash();
+      let existing;
       try {
-        await docker(["image", "inspect", sandboxImage]);
+        existing = await docker([
+          "image",
+          "inspect",
+          "--format",
+          '{{ index .Config.Labels "dev.rycruit.sandbox-hash" }}',
+          sandboxImage,
+        ]);
       } catch (error) {
         if (!/no such image|not found/i.test(error.message)) throw error;
+      }
+      if (existing !== hash) {
         status = "building";
         console.log(
-          `Sandbox image ${sandboxImage} is missing; building it now.`,
+          `Sandbox image ${sandboxImage} is missing or outdated; building it now.`,
         );
         directory = await mkdtemp(join(tmpdir(), "rycruit-sandbox-"));
         await mkdir(join(directory, "server"));
@@ -59,6 +78,11 @@ export function initializeSandbox() {
         await docker(
           [
             "build",
+            "--build-arg",
+            `RYCRUIT_SANDBOX_HASH=${hash}`,
+            ...(process.env.SANDBOX_BASE_IMAGE
+              ? ["--build-arg", `BASE_IMAGE=${process.env.SANDBOX_BASE_IMAGE}`]
+              : []),
             "-f",
             join(directory, "Dockerfile.sandbox"),
             "-t",

@@ -30,6 +30,7 @@ try {
   for (const failed of [false, true]) {
     const state = `${directory}/${failed ? "failure" : "success"}`;
     await mkdir(state);
+    if (!failed) await writeFile(`${state}/ready`, "outdated-source-hash");
     const server = await startServer(3115, {
       RUNNER: "docker",
       ALLOW_UNAUTHENTICATED: "true",

@@ -33,7 +33,7 @@ export function CodePreview({
 }: {
   code: string;
   cursors?: { name: string; color: string; at: number }[];
-  language?: Lang;
+  language?: Extract<Lang, "java" | "cpp" | "python">;
 }) {
   const host = useRef<HTMLDivElement>(null);
   const theme = useTheme();
