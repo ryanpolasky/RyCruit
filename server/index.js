@@ -103,6 +103,16 @@ function redirect(res, id) {
   res.writeHead(303, { Location: `/p/${id}` });
   res.end();
 }
+async function html(res, status, content) {
+  try {
+    const page = await content;
+    res.writeHead(status, { "Content-Type": "text/html; charset=utf-8" });
+    res.end(page);
+  } catch {
+    res.writeHead(503, { "Content-Type": "text/plain; charset=utf-8" });
+    res.end("Build the client with pnpm build.");
+  }
+}
 function crossSite(req) {
   const origin = req.headers.origin;
   return (
@@ -142,8 +152,7 @@ const server = http.createServer(async (req, res) => {
         isAdmin: identity.isAdmin,
       });
     if (user.status !== "allowed") {
-      res.writeHead(403, { "Content-Type": "text/html; charset=utf-8" });
-      return res.end(accessPage(email, user.status === "blocked"));
+      return html(res, 403, accessPage(email, user.status === "blocked"));
     }
     return redirect(res, store.createPad(email));
   }
@@ -155,17 +164,13 @@ const server = http.createServer(async (req, res) => {
     const token = path.slice(3);
     if (req.method === "GET" || req.method === "HEAD") {
       const invite = store.getInvite(token);
-      res.writeHead(invite ? 200 : 410, {
-        "Content-Type": "text/html; charset=utf-8",
-      });
-      return res.end(req.method === "HEAD" ? undefined : invitePage(invite));
+      return html(res, invite ? 200 : 410, invitePage(invite));
     }
     if (crossSite(req))
       return json(res, 403, { error: "Cross-site request rejected" });
     const id = store.redeemInvite(token);
     if (!id) {
-      res.writeHead(410, { "Content-Type": "text/html; charset=utf-8" });
-      return res.end(invitePage(null));
+      return html(res, 410, invitePage(null));
     }
     return redirect(res, id);
   }
@@ -281,6 +286,8 @@ const server = http.createServer(async (req, res) => {
         ".js": "application/javascript",
         ".css": "text/css",
         ".svg": "image/svg+xml",
+        ".woff": "font/woff",
+        ".woff2": "font/woff2",
       }[extname(file)] || "application/octet-stream",
     );
     res.end(content);

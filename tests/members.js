@@ -44,6 +44,49 @@ async function setStatus(email, status, extra = {}) {
   });
 }
 let browser;
+async function appearance(page, theme) {
+  await page.evaluate(() => document.fonts.ready);
+  const actual = await page.evaluate(() => ({
+    theme: document.documentElement.dataset.theme,
+    background: getComputedStyle(document.documentElement).backgroundColor,
+    fonts: [
+      document.body,
+      document.querySelector("h1"),
+      document.querySelector(".wordmark"),
+    ].map((element) => getComputedStyle(element).fontFamily),
+    loadedInter: [...document.fonts]
+      .filter((font) => font.family === "Inter" && font.status === "loaded")
+      .map((font) => font.weight),
+    mono: getComputedStyle(document.documentElement)
+      .getPropertyValue("--mono")
+      .trim(),
+    action: document.querySelector(".primary")
+      ? {
+          background: getComputedStyle(document.querySelector(".primary"))
+            .backgroundColor,
+          decoration: getComputedStyle(document.querySelector(".primary"))
+            .textDecorationLine,
+          radius: getComputedStyle(document.querySelector(".primary"))
+            .borderRadius,
+        }
+      : null,
+  }));
+  assert.equal(actual.theme, theme);
+  assert.equal(
+    actual.background,
+    theme === "dark" ? "rgb(38, 40, 44)" : "rgb(233, 234, 238)",
+  );
+  assert(actual.fonts.every((font) => font.includes("Inter")));
+  for (const weight of ["400", "600", "700"])
+    assert(actual.loadedInter.includes(weight));
+  assert.match(actual.mono, /JetBrains Mono/);
+  if (actual.action)
+    assert.deepEqual(actual.action, {
+      background: "rgb(56, 113, 225)",
+      decoration: "none",
+      radius: "6px",
+    });
+}
 try {
   const pending = await request("/new");
   assert.equal(pending.status, 403);
@@ -213,6 +256,7 @@ try {
   await page
     .getByRole("heading", { name: "Waiting on Ryan", exact: true })
     .waitFor();
+  await appearance(page, "dark");
   await page.screenshot({ path: new URL("waiting-dark.png", shots).pathname });
   await page.setViewportSize({ width: 390, height: 844 });
   assert(
@@ -223,6 +267,12 @@ try {
   await page.screenshot({
     path: new URL("waiting-mobile-dark.png", shots).pathname,
   });
+  await page.evaluate(() => localStorage.setItem("rycruit.theme", "light"));
+  await page.reload();
+  await appearance(page, "light");
+  await page.evaluate(() => localStorage.setItem("rycruit.theme", "invalid"));
+  await page.reload();
+  await appearance(page, "dark");
   const host = await browser.newContext({
     viewport: { width: 1440, height: 900 },
     colorScheme: "dark",
@@ -247,6 +297,7 @@ try {
   await shua.getByRole("cell", { name: "Blocked", exact: true }).waitFor();
   await page.reload();
   await page.getByRole("heading", { name: "No access", exact: true }).waitFor();
+  await appearance(page, "dark");
   await adminPage.screenshot({
     path: new URL("admin-people-dark.png", shots).pathname,
     fullPage: true,
@@ -273,7 +324,10 @@ try {
     body: JSON.stringify({ label: "Browser guest", kind: "single-use" }),
   });
   const { invite } = await inviteRes.json();
-  const anon = await browser.newContext();
+  const anon = await browser.newContext({
+    viewport: { width: 1440, height: 900 },
+    colorScheme: "light",
+  });
   const invitePage = await anon.newPage();
   await invitePage.goto(`${base}/i/${invite.token}`);
   await invitePage
@@ -282,6 +336,23 @@ try {
       exact: true,
     })
     .waitFor();
+  await appearance(invitePage, "light");
+  await invitePage.evaluate(() =>
+    localStorage.setItem("rycruit.theme", "dark"),
+  );
+  await invitePage.reload();
+  await appearance(invitePage, "dark");
+  await invitePage.screenshot({
+    path: new URL("invite-confirm-dark.png", shots).pathname,
+  });
+  await invitePage.evaluate(() =>
+    localStorage.setItem("rycruit.theme", "light"),
+  );
+  await invitePage.reload();
+  await appearance(invitePage, "light");
+  await invitePage.screenshot({
+    path: new URL("invite-confirm-light.png", shots).pathname,
+  });
   const redemption = invitePage.waitForResponse(
     (response) =>
       response.request().method() === "POST" &&
@@ -298,6 +369,18 @@ try {
     .waitFor();
   console.log(
     "PASS anonymous invite UI: GET confirmation followed by same-origin form POST creates pad without sign-in",
+  );
+  const unavailable = await invitePage.goto(`${base}/i/${invite.token}`);
+  assert.equal(unavailable.status(), 410);
+  await invitePage
+    .getByRole("heading", { name: "Invite unavailable", exact: true })
+    .waitFor();
+  await appearance(invitePage, "light");
+  console.log(
+    "PASS server pages: self-hosted Inter loads for body, heading and wordmark; shared Islands colors/buttons; saved themes override system, invalid preference falls back; blocked and invite 410 stay themed",
+  );
+  console.log(
+    "PASS screenshots: shots/waiting-dark.png, shots/waiting-mobile-dark.png, shots/invite-confirm-dark.png, shots/invite-confirm-light.png",
   );
   assert.deepEqual(errors, []);
   await browser.close();
