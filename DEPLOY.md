@@ -1,6 +1,6 @@
 # Deploy RyCruit
 
-The remotely managed tunnel **ND_Basement**, DNS for **rycruit.dev**, and Ryan-only Access app **RyCruit** already exist; the tunnel routes to `http://rycruit:3001`.
+The remotely managed tunnel **ND_Basement**, DNS for **rycruit.dev**, and the **RyCruit sign-in** and **RyCruit admin** Access apps already exist; the tunnel routes to `http://rycruit:3001`.
 
 ## Shared Compose
 
@@ -15,7 +15,8 @@ services:
       RUNNER: docker
       DATA_DIR: /data
       CF_ACCESS_TEAM: rpolasky
-      CF_ACCESS_AUD: b4e9d79dd7f3e3e67fcbd7a1a915d7214a2bee3911d1c151e91bf4c26d301e07
+      CF_ACCESS_AUD_MEMBER: 93d88fa02a61280d9d9bcc8c77ec0909b4a5cd4061cc47985f7956faf3b76c02
+      CF_ACCESS_AUD_ADMIN: b4e9d79dd7f3e3e67fcbd7a1a915d7214a2bee3911d1c151e91bf4c26d301e07
       ADMIN_EMAILS: ryanpolasky@hotmail.com
       ALLOW_UNAUTHENTICATED: "false"
     volumes:
@@ -43,6 +44,10 @@ Rebuild the sandbox when `Dockerfile.sandbox` or `server/sandbox.py` changes. Th
 
 The app image includes the Docker CLI and runs as root. Docker Desktop on macOS exposes a root-owned socket proxy: root in the container is simplest; a non-root override needs matching socket group permissions. Mounting the socket grants host-level Docker privileges. Back up the `rycruit_pads` volume, including SQLite/WAL consistently. If upgrading an existing install, reuse its existing pad volume rather than starting an empty one.
 
-Access protects `/new`, `/admin`, `/admin/*`, `/api/admin` and `/api/admin/*`. The server independently verifies `Cf-Access-Jwt-Assertion` against the `rpolasky` team's keys, configured AUD, expiry and admin email. The verified `CF_Authorization` cookie remains a fallback; it is not needed when Access supplies the header. Keep `ALLOW_UNAUTHENTICATED` false. Existing pad links, invites and collaboration remain public.
+The sign-in app covers `/new` and `/api/me` with email one-time PIN for anyone. These routes accept the member or admin AUD. A first sign-in creates a pending account; Ryan allows or blocks it in Admin's People section. Remove returns an allowed account to pending. Admin emails are always allowed to create pads, but admin routes require an admin-AUD token plus an email in `ADMIN_EMAILS`.
 
-Open https://rycruit.dev/admin to manage pads/invites or https://rycruit.dev/new to create a pad. Single-use invites are consumed when opened, including by link scanners.
+The Ryan-only admin app covers `/admin`, `/admin/*`, `/api/admin` and `/api/admin/*`. The server independently verifies `Cf-Access-Jwt-Assertion` against the `rpolasky` team's keys, route-specific AUD and expiry. The verified `CF_Authorization` cookie remains a fallback. Both AUD variables are required for member routes; the old `CF_ACCESS_AUD` variable is no longer used. Keep `ALLOW_UNAUTHENTICATED` false. Existing pad links, invites and collaboration remain public.
+
+Cloudflare Zero Trust's free plan has a 50-seat limit; signed-in users count toward it.
+
+Open https://rycruit.dev/admin to manage people, pads and invites or https://rycruit.dev/new to request access or create a pad. Invite GET/HEAD requests only show a confirmation page; Create pad submits a same-origin POST. Link-preview scanners do not consume single-use invites.

@@ -6,7 +6,7 @@ export default defineConfig({
     proxy: {
       "/api": { target: "http://127.0.0.1:3001", changeOrigin: false },
       "/new": "http://127.0.0.1:3001",
-      "/i/": "http://127.0.0.1:3001",
+      "/i/": { target: "http://127.0.0.1:3001", changeOrigin: false },
       "/ws": { target: "ws://127.0.0.1:3001", ws: true },
     },
   },

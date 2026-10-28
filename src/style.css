@@ -840,6 +840,9 @@ input:focus-visible {
   overflow-x: auto;
   max-height: 320px;
 }
+.people-table {
+  max-height: 480px;
+}
 table {
   border-collapse: collapse;
   width: 100%;

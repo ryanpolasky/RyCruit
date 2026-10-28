@@ -10,11 +10,19 @@ import {
   docs,
 } from "@y/websocket-server/utils";
 import { runCode } from "./runner.js";
-import { createAdminVerifier } from "./auth.js";
+import { createAccessVerifier } from "./auth.js";
+import { accessPage, invitePage } from "./access-page.js";
 import { openStore, starters, validId } from "./store.js";
 
 const store = openStore(process.env.DATA_DIR || "./data");
-const admin = createAdminVerifier();
+const authenticate = createAccessVerifier();
+const adminEmails = new Set(
+  (process.env.ADMIN_EMAILS || "")
+    .split(",")
+    .map((email) => email.trim().toLowerCase())
+    .filter(Boolean),
+);
+if (process.env.ALLOW_UNAUTHENTICATED === "true") adminEmails.add("ryan@local");
 const pending = new Map();
 setContentInitializor((doc) => {
   if (!store.exists(doc.name)) throw new Error("Pad not found");
@@ -95,46 +103,100 @@ function redirect(res, id) {
   res.writeHead(303, { Location: `/p/${id}` });
   res.end();
 }
+function crossSite(req) {
+  const origin = req.headers.origin;
+  return (
+    (origin &&
+      ![`https://${req.headers.host}`, `http://${req.headers.host}`].includes(
+        origin,
+      )) ||
+    req.headers["sec-fetch-site"] === "cross-site"
+  );
+}
 const server = http.createServer(async (req, res) => {
   res.setHeader("Cache-Control", "no-store");
   res.setHeader("Referrer-Policy", "no-referrer");
   res.setHeader("X-Content-Type-Options", "nosniff");
   const url = new URL(req.url, "http://localhost");
   const path = url.pathname;
-  const adminPath =
-    path === "/new" ||
-    path.startsWith("/admin") ||
-    path.startsWith("/api/admin");
-  const email = adminPath ? await admin(req) : null;
-  if (adminPath && !email)
-    return json(res, 403, { error: "Admin access required" });
-  if (path === "/new") {
+  const adminPath = path.startsWith("/admin") || path.startsWith("/api/admin");
+  const memberPath = path === "/new" || path === "/api/me";
+  const identity =
+    adminPath || memberPath
+      ? await authenticate(req, adminPath ? "admin" : "member")
+      : null;
+  if ((adminPath || memberPath) && !identity)
+    return json(res, 403, {
+      error: adminPath ? "Admin access required" : "Sign-in required",
+    });
+  const email = identity?.email;
+  if (adminPath) store.seeUser(email, true);
+  if (memberPath) {
     if (req.method !== "GET")
       return json(res, 405, { error: "Method not allowed" });
+    const user = store.seeUser(email, identity.isAdminEmail);
+    if (path === "/api/me")
+      return json(res, 200, {
+        email,
+        status: user.status,
+        isAdmin: identity.isAdmin,
+      });
+    if (user.status !== "allowed") {
+      res.writeHead(403, { "Content-Type": "text/html; charset=utf-8" });
+      return res.end(accessPage(email, user.status === "blocked"));
+    }
     return redirect(res, store.createPad(email));
   }
   if (path.startsWith("/i/")) {
-    if (req.method !== "GET")
+    res.setHeader("X-Robots-Tag", "noindex, nofollow");
+    res.setHeader("Referrer-Policy", "same-origin");
+    if (!["GET", "HEAD", "POST"].includes(req.method))
       return json(res, 405, { error: "Method not allowed" });
-    const id = store.redeemInvite(path.slice(3));
-    if (!id) return json(res, 410, { error: "Invite unavailable" });
+    const token = path.slice(3);
+    if (req.method === "GET" || req.method === "HEAD") {
+      const invite = store.getInvite(token);
+      res.writeHead(invite ? 200 : 410, {
+        "Content-Type": "text/html; charset=utf-8",
+      });
+      return res.end(req.method === "HEAD" ? undefined : invitePage(invite));
+    }
+    if (crossSite(req))
+      return json(res, 403, { error: "Cross-site request rejected" });
+    const id = store.redeemInvite(token);
+    if (!id) {
+      res.writeHead(410, { "Content-Type": "text/html; charset=utf-8" });
+      return res.end(invitePage(null));
+    }
     return redirect(res, id);
   }
   if (path.startsWith("/api/admin")) {
+    if (req.method === "GET" && path === "/api/admin/users")
+      return json(res, 200, {
+        users: store.listUsers().map((user) => ({
+          ...user,
+          status: adminEmails.has(user.email) ? "allowed" : user.status,
+          isAdmin: adminEmails.has(user.email),
+        })),
+      });
     if (req.method === "GET" && path === "/api/admin/pads")
       return json(res, 200, { pads: store.listPads() });
     if (req.method === "GET" && path === "/api/admin/invites")
       return json(res, 200, { invites: store.listInvites() });
-    const origin = req.headers.origin;
-    if (
-      (origin &&
-        ![`https://${req.headers.host}`, `http://${req.headers.host}`].includes(
-          origin,
-        )) ||
-      req.headers["sec-fetch-site"] === "cross-site"
-    )
+    if (crossSite(req))
       return json(res, 403, { error: "Cross-site request rejected" });
     try {
+      const person = path.match(/^\/api\/admin\/users\/([^/]+)$/);
+      if (req.method === "PATCH" && person) {
+        if (!req.headers["content-type"]?.startsWith("application/json"))
+          return json(res, 415, { error: "Expected JSON" });
+        const target = decodeURIComponent(person[1]).trim().toLowerCase();
+        if (adminEmails.has(target))
+          return json(res, 409, { error: "Admin accounts are always allowed" });
+        const { status, note } = await body(req);
+        if (!store.setUserStatus(target, status, note))
+          return json(res, 404, { error: "Person not found" });
+        return json(res, 200, { ok: true });
+      }
       if (req.method === "POST" && path === "/api/admin/invites") {
         if (!req.headers["content-type"]?.startsWith("application/json"))
           return json(res, 415, { error: "Expected JSON" });

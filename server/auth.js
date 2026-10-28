@@ -1,8 +1,9 @@
 import { createRemoteJWKSet, jwtVerify } from "jose";
 
-export function createAdminVerifier({
+export function createAccessVerifier({
   team = process.env.CF_ACCESS_TEAM,
-  audience = process.env.CF_ACCESS_AUD,
+  audienceAdmin = process.env.CF_ACCESS_AUD_ADMIN,
+  audienceMember = process.env.CF_ACCESS_AUD_MEMBER,
   emails = process.env.ADMIN_EMAILS || "",
   bypass = process.env.ALLOW_UNAUTHENTICATED === "true",
   keySet,
@@ -24,8 +25,11 @@ export function createAdminVerifier({
           timeoutDuration: 5000,
         })
       : null);
-  return async function admin(req) {
-    if (bypass) return "ryan@local";
+  return async function authenticate(req, role = "admin") {
+    if (bypass)
+      return { email: "ryan@local", isAdmin: true, isAdminEmail: true };
+    const audiences =
+      role === "admin" ? [audienceAdmin] : [audienceMember, audienceAdmin];
     const cookie = req.headers.cookie
       ?.split(";")
       .map((part) => part.trim())
@@ -34,7 +38,8 @@ export function createAdminVerifier({
     const token = req.headers["cf-access-jwt-assertion"] ?? cookie;
     if (
       !issuer ||
-      !audience ||
+      !audienceAdmin ||
+      (role === "member" && !audienceMember) ||
       !keys ||
       typeof token !== "string" ||
       token.length > 16384
@@ -43,13 +48,21 @@ export function createAdminVerifier({
     try {
       const { payload } = await jwtVerify(token, keys, {
         issuer,
-        audience,
+        audience: audiences,
         algorithms: ["RS256"],
         requiredClaims: ["exp", "iat", "sub", "email"],
       });
       const email =
         typeof payload.email === "string" ? payload.email.toLowerCase() : "";
-      return admins.has(email) ? email : null;
+      if (!email || email.length > 254 || !/^[^\s@]+@[^\s@]+$/.test(email))
+        return null;
+      const tokenAudiences = Array.isArray(payload.aud)
+        ? payload.aud
+        : [payload.aud];
+      const isAdminEmail = admins.has(email);
+      const isAdmin = isAdminEmail && tokenAudiences.includes(audienceAdmin);
+      if (role === "admin" && !isAdmin) return null;
+      return { email, isAdmin, isAdminEmail };
     } catch {
       return null;
     }

@@ -19,6 +19,7 @@ export function openStore(directory) {
     CREATE TABLE IF NOT EXISTS pads (id TEXT PRIMARY KEY, state BLOB NOT NULL);
     CREATE TABLE IF NOT EXISTS pad_registry (id TEXT PRIMARY KEY, createdAt INTEGER NOT NULL, createdBy TEXT NOT NULL, inviteLabel TEXT, lastActive INTEGER NOT NULL);
     CREATE TABLE IF NOT EXISTS invites (token TEXT PRIMARY KEY, label TEXT NOT NULL, kind TEXT NOT NULL, uses INTEGER NOT NULL DEFAULT 0, createdAt INTEGER NOT NULL, createdBy TEXT NOT NULL, expiresAt INTEGER, revokedAt INTEGER);
+    CREATE TABLE IF NOT EXISTS users (email TEXT PRIMARY KEY, status TEXT NOT NULL CHECK(status IN ('pending', 'allowed', 'blocked')), firstSeen INTEGER NOT NULL, lastSeen INTEGER NOT NULL, approvedAt INTEGER, note TEXT);
   `);
   const now = Date.now();
   db.prepare(
@@ -59,8 +60,64 @@ export function openStore(directory) {
     doc.destroy();
     return id;
   }
+  function getInvite(token) {
+    if (!/^[a-zA-Z0-9_-]{43}$/.test(token)) return null;
+    const invite = db.prepare("SELECT * FROM invites WHERE token=?").get(token);
+    return !invite ||
+      invite.revokedAt !== null ||
+      (invite.expiresAt !== null && invite.expiresAt <= Date.now()) ||
+      (invite.kind === "single-use" && invite.uses > 0)
+      ? null
+      : invite;
+  }
   return {
     exists,
+    getInvite,
+    seeUser(email, alwaysAllowed = false) {
+      const at = Date.now();
+      db.prepare(
+        "INSERT INTO users (email, status, firstSeen, lastSeen, approvedAt) VALUES (?, ?, ?, ?, ?) ON CONFLICT(email) DO UPDATE SET lastSeen=excluded.lastSeen",
+      ).run(
+        email,
+        alwaysAllowed ? "allowed" : "pending",
+        at,
+        at,
+        alwaysAllowed ? at : null,
+      );
+      if (alwaysAllowed)
+        db.prepare(
+          "UPDATE users SET status='allowed', approvedAt=COALESCE(approvedAt, ?) WHERE email=?",
+        ).run(at, email);
+      return db.prepare("SELECT * FROM users WHERE email=?").get(email);
+    },
+    listUsers: () =>
+      db
+        .prepare(
+          "SELECT * FROM users ORDER BY CASE status WHEN 'pending' THEN 0 WHEN 'allowed' THEN 1 ELSE 2 END, firstSeen, email",
+        )
+        .all(),
+    setUserStatus(email, status, note) {
+      if (
+        !["pending", "allowed", "blocked"].includes(status) ||
+        (note !== undefined &&
+          note !== null &&
+          (typeof note !== "string" || note.length > 500))
+      )
+        throw new Error("Invalid person options");
+      return (
+        db
+          .prepare(
+            "UPDATE users SET status=?, approvedAt=?, note=CASE WHEN ? THEN ? ELSE note END WHERE email=?",
+          )
+          .run(
+            status,
+            status === "allowed" ? Date.now() : null,
+            note !== undefined ? 1 : 0,
+            note ?? null,
+            email,
+          ).changes > 0
+      );
+    },
     createPad: (by) => transaction(() => insertPad(by)),
     load: (id) => db.prepare("SELECT state FROM pads WHERE id = ?").get(id),
     save(id, state) {
@@ -104,16 +161,8 @@ export function openStore(directory) {
     redeemInvite(token) {
       if (!/^[a-zA-Z0-9_-]{43}$/.test(token)) return null;
       return transaction(() => {
-        const invite = db
-          .prepare("SELECT * FROM invites WHERE token = ?")
-          .get(token);
-        if (
-          !invite ||
-          invite.revokedAt ||
-          (invite.expiresAt !== null && invite.expiresAt <= Date.now()) ||
-          (invite.kind === "single-use" && invite.uses > 0)
-        )
-          return null;
+        const invite = getInvite(token);
+        if (!invite) return null;
         db.prepare("UPDATE invites SET uses = uses + 1 WHERE token = ?").run(
           token,
         );

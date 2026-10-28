@@ -6,19 +6,21 @@ import { openStore } from "../server/store.js";
 import { randomBytes } from "node:crypto";
 import WebSocket from "ws";
 import { generateKeyPair, exportJWK, createLocalJWKSet, SignJWT } from "jose";
-import { createAdminVerifier } from "../server/auth.js";
+import { createAccessVerifier } from "../server/auth.js";
 import { startServer, stopServer, createPad } from "./helpers.js";
 
 const { publicKey, privateKey } = await generateKeyPair("RS256");
 const jwk = await exportJWK(publicKey);
 jwk.kid = "test";
-const verify = createAdminVerifier({
+const authenticate = createAccessVerifier({
   team: "test-team",
-  audience: "test-audience",
+  audienceAdmin: "test-audience",
+  audienceMember: "member-audience",
   emails: " Ryan@Example.com, other@example.com ",
   bypass: false,
   keySet: createLocalJWKSet({ keys: [jwk] }),
 });
+const verify = async (req) => (await authenticate(req))?.email ?? null;
 async function jwt(overrides = {}) {
   return new SignJWT({
     email: "ryan@example.com",
@@ -88,7 +90,7 @@ assert.equal(
   null,
 );
 assert.equal(
-  await createAdminVerifier({ bypass: false, team: "", audience: "" })({
+  await createAccessVerifier({ bypass: false, team: "", audienceAdmin: "" })({
     headers: {},
   }),
   null,
@@ -173,6 +175,7 @@ const get = (path) => fetch(`${base}${path}`, { redirect: "manual" });
 const post = (path, value) =>
   fetch(`${base}${path}`, {
     method: "POST",
+    redirect: "manual",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(value),
   });
@@ -234,9 +237,51 @@ try {
   const single = await invite({ label: "Shua", kind: "single-use" });
   const unlabeled = await invite({ kind: "single-use" });
   assert.equal(unlabeled.label, "");
+  for (const agent of [
+    "Mozilla/5.0",
+    "Slackbot-LinkExpanding 1.0",
+    "facebookexternalhit/1.1",
+    "Discordbot/2.0",
+  ]) {
+    const preview = await fetch(`${base}/i/${single.token}`, {
+      headers: { "User-Agent": agent },
+    });
+    assert.equal(preview.status, 200);
+    assert.equal(preview.headers.get("cache-control"), "no-store");
+    assert.match(preview.headers.get("x-robots-tag"), /noindex/);
+    assert.match(await preview.text(), /Ryan invited you to make a pad/);
+  }
+  assert.equal(
+    (await fetch(`${base}/i/${single.token}`, { method: "HEAD" })).status,
+    200,
+  );
+  assert.equal(
+    db.prepare("SELECT uses FROM invites WHERE token=?").get(single.token).uses,
+    0,
+  );
+  assert.equal(
+    (
+      await fetch(`${base}/i/${single.token}`, {
+        method: "POST",
+        headers: { Origin: "https://evil.example" },
+        redirect: "manual",
+      })
+    ).status,
+    403,
+  );
+  assert.equal(
+    (
+      await fetch(`${base}/i/${single.token}`, {
+        method: "POST",
+        headers: { "Sec-Fetch-Site": "cross-site" },
+        redirect: "manual",
+      })
+    ).status,
+    403,
+  );
   const attempts = await Promise.all([
-    get(`/i/${single.token}`),
-    get(`/i/${single.token}`),
+    post(`/i/${single.token}`, {}),
+    post(`/i/${single.token}`, {}),
   ]);
   assert.deepEqual(attempts.map((r) => r.status).sort(), [303, 410]);
   const invitePad = attempts
@@ -253,12 +298,13 @@ try {
     "Shua",
   );
   assert.equal((await get(`/i/${single.token}`)).status, 410);
+  assert.equal((await post(`/i/${single.token}`, {})).status, 410);
   console.log(
-    "PASS single-use invite: concurrent redemption creates exactly one pad, records label and one use, then returns 410",
+    "PASS single-use invite: bot GETs and HEAD do not consume it; cross-site POST rejected; concurrent POSTs create exactly one pad, then return 410",
   );
   const timed = await invite({ label: "Practice", kind: "expiring", days: 2 });
-  assert.equal((await get(`/i/${timed.token}`)).status, 303);
-  assert.equal((await get(`/i/${timed.token}`)).status, 303);
+  assert.equal((await post(`/i/${timed.token}`, {})).status, 303);
+  assert.equal((await post(`/i/${timed.token}`, {})).status, 303);
   assert.equal(
     db.prepare("SELECT uses FROM invites WHERE token=?").get(timed.token).uses,
     2,
@@ -268,12 +314,14 @@ try {
     timed.token,
   );
   assert.equal((await get(`/i/${timed.token}`)).status, 410);
+  assert.equal((await post(`/i/${timed.token}`, {})).status, 410);
   const revoked = await invite({ label: "Revoked", kind: "single-use" });
   assert.equal(
     (await post(`/api/admin/invites/${revoked.token}/revoke`, {})).status,
     200,
   );
   assert.equal((await get(`/i/${revoked.token}`)).status, 410);
+  assert.equal((await post(`/i/${revoked.token}`, {})).status, 410);
   assert.equal((await get("/i/not-a-token")).status, 410);
   console.log(
     "PASS expiring invite: reusable with usage count; expired, revoked and unknown invites fail with 410",

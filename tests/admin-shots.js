@@ -42,6 +42,7 @@ try {
   createdInvites.push(invite.token);
   const redeemed = await fetch(`${base}/i/${invite.token}`, {
     redirect: "manual",
+    method: "POST",
   });
   assert.equal(redeemed.status, 303);
   createdPads.push(redeemed.headers.get("location").slice(3));
@@ -185,7 +186,7 @@ try {
       route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify({ pads: [], invites: [] }),
+        body: JSON.stringify({ pads: [], invites: [], users: [] }),
       }),
     );
     await denied.reload();

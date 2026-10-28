@@ -17,6 +17,15 @@ type Invite = {
   expiresAt: number | null;
   revokedAt: number | null;
 };
+type Person = {
+  email: string;
+  status: "pending" | "allowed" | "blocked";
+  firstSeen: number;
+  lastSeen: number;
+  approvedAt: number | null;
+  note: string | null;
+  isAdmin: boolean;
+};
 const date = (at: number | null) =>
   at === null ? "Never" : new Date(at).toLocaleString();
 
@@ -30,6 +39,7 @@ async function request(path: string, options: RequestInit = {}) {
 export function Admin() {
   const [pads, setPads] = useState<PadInfo[]>([]);
   const [invites, setInvites] = useState<Invite[]>([]);
+  const [people, setPeople] = useState<Person[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState("");
   const [working, setWorking] = useState(false);
@@ -39,9 +49,14 @@ export function Admin() {
   const [copied, setCopied] = useState("");
   const [clipboardOK, setClipboardOK] = useState(false);
   async function load() {
-    const [p, i] = await Promise.all([request("pads"), request("invites")]);
+    const [p, i, u] = await Promise.all([
+      request("pads"),
+      request("invites"),
+      request("users"),
+    ]);
     setPads(p.pads);
     setInvites(i.invites);
+    setPeople(u.users);
     setLoaded(true);
   }
   useEffect(() => {
@@ -72,7 +87,7 @@ export function Admin() {
         <div className="admin-heading">
           <div>
             <h1>Admin</h1>
-            <p>Manage pads and host invites.</p>
+            <p>Manage people, pads and host invites.</p>
           </div>
           <a className="primary admin-new" href="/new">
             New pad
@@ -95,6 +110,139 @@ export function Admin() {
           </p>
         ) : (
           <>
+            <section className="admin-island" aria-label="People">
+              <div className="admin-section-heading">
+                <h2>
+                  People <span>{people.length}</span>
+                </h2>
+                <button disabled={working} onClick={() => act(load)}>
+                  Refresh people
+                </button>
+              </div>
+              <p className="admin-note">
+                Allow accounts to create pads. Remove returns an account to
+                pending. Existing pad links still work.
+              </p>
+              {people.length === 0 ? (
+                <p className="admin-empty">No sign-ins yet</p>
+              ) : (
+                <div className="table-scroll people-table">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Email</th>
+                        <th>Status</th>
+                        <th>First seen</th>
+                        <th>Last seen</th>
+                        <th>Approved</th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {people.map((person) => (
+                        <tr key={person.email}>
+                          <td>{person.email}</td>
+                          <td>
+                            {person.isAdmin
+                              ? "Admin"
+                              : person.status === "pending"
+                                ? "Pending"
+                                : person.status === "allowed"
+                                  ? "Allowed"
+                                  : "Blocked"}
+                          </td>
+                          <td>{date(person.firstSeen)}</td>
+                          <td>{date(person.lastSeen)}</td>
+                          <td>
+                            {person.approvedAt
+                              ? date(person.approvedAt)
+                              : "Not approved"}
+                          </td>
+                          <td>
+                            <div className="table-actions">
+                              {!person.isAdmin &&
+                                (person.status === "allowed" ? (
+                                  <button
+                                    disabled={working}
+                                    onClick={() =>
+                                      act(() =>
+                                        request(
+                                          `users/${encodeURIComponent(person.email)}`,
+                                          {
+                                            method: "PATCH",
+                                            headers: {
+                                              "Content-Type":
+                                                "application/json",
+                                            },
+                                            body: JSON.stringify({
+                                              status: "pending",
+                                            }),
+                                          },
+                                        ),
+                                      )
+                                    }
+                                  >
+                                    Remove (pending)
+                                  </button>
+                                ) : (
+                                  <>
+                                    <button
+                                      disabled={working}
+                                      onClick={() =>
+                                        act(() =>
+                                          request(
+                                            `users/${encodeURIComponent(person.email)}`,
+                                            {
+                                              method: "PATCH",
+                                              headers: {
+                                                "Content-Type":
+                                                  "application/json",
+                                              },
+                                              body: JSON.stringify({
+                                                status: "allowed",
+                                              }),
+                                            },
+                                          ),
+                                        )
+                                      }
+                                    >
+                                      Allow
+                                    </button>
+                                    {person.status !== "blocked" && (
+                                      <button
+                                        disabled={working}
+                                        onClick={() =>
+                                          act(() =>
+                                            request(
+                                              `users/${encodeURIComponent(person.email)}`,
+                                              {
+                                                method: "PATCH",
+                                                headers: {
+                                                  "Content-Type":
+                                                    "application/json",
+                                                },
+                                                body: JSON.stringify({
+                                                  status: "blocked",
+                                                }),
+                                              },
+                                            ),
+                                          )
+                                        }
+                                      >
+                                        Block
+                                      </button>
+                                    )}
+                                  </>
+                                ))}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </section>
             <section className="admin-island">
               <div className="admin-section-heading">
                 <h2>
@@ -123,7 +271,12 @@ export function Admin() {
                         <tr key={pad.id}>
                           <td className="mono">{pad.id}</td>
                           <td>{date(pad.createdAt)}</td>
-                          <td>{pad.inviteLabel || pad.createdBy}</td>
+                          <td>
+                            {pad.createdBy}
+                            {pad.inviteLabel && (
+                              <span> ({pad.inviteLabel})</span>
+                            )}
+                          </td>
                           <td>{date(pad.lastActive)}</td>
                           <td className="table-actions">
                             <a href={`/p/${pad.id}`}>Open</a>
@@ -304,9 +457,9 @@ export function Admin() {
                 </p>
               )}
               <p className="admin-note">
-                An invite creates a pad when opened. Single-use links work once;
-                expiring links can be reused until they expire. Revoking an
-                invite does not delete its pads.
+                Create pad on an invite page creates the pad. Single-use links
+                work once; expiring links can be reused until they expire.
+                Revoking an invite does not delete its pads.
               </p>
             </section>
           </>
