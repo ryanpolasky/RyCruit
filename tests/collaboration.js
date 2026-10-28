@@ -2,8 +2,9 @@ import assert from "node:assert/strict";
 import * as Y from "yjs";
 import { WebsocketProvider } from "y-websocket";
 import WebSocket from "ws";
+import { createPad } from "./helpers.js";
 const port = process.env.PORT || 3001;
-const padId = "test-" + Date.now().toString(36);
+const padId = await createPad(`http://127.0.0.1:${port}`);
 function client() {
   const doc = new Y.Doc();
   const provider = new WebsocketProvider(

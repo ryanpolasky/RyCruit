@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { chromium } from "playwright-core";
 import { mkdir, readFile } from "node:fs/promises";
 import { globSync } from "node:fs";
+import { createPad } from "./helpers.js";
 
 const chrome = globSync("/opt/.devin/chrome/chrome/*/chrome-linux64/chrome")[0];
 const browser = await chromium.launch({
@@ -53,7 +54,7 @@ const [a, b] = await Promise.all(contexts.map((context) => context.newPage()));
 const errors = [];
 for (const page of [a, b])
   page.on("pageerror", (error) => errors.push(error.message));
-const pad = `islands-${Date.now().toString(36)}`;
+const pad = await createPad(base);
 try {
   await Promise.all([a.goto(`${base}/p/${pad}`), b.goto(`${base}/p/${pad}`)]);
   await a.getByText("● Live", { exact: true }).waitFor();

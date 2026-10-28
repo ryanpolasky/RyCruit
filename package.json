@@ -24,6 +24,7 @@
     "@lezer/highlight": "^1.2.5",
     "@y/websocket-server": "^0.1.0",
     "codemirror": "^6.0.0",
+    "jose": "^6.2.13",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "ws": "^8.0.0",

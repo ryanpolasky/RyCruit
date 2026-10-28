@@ -2,7 +2,7 @@ import { useState } from "react";
 import * as Y from "yjs";
 import type { Lang, Person } from "./types";
 import { Wordmark } from "./Wordmark";
-import { toggleTheme, useTheme } from "./theme";
+import { ThemeToggle } from "./ThemeToggle";
 const labels = { python: "Python 3", cpp: "C++ 20", java: "Java 17" };
 type Props = {
   padId: string;
@@ -35,7 +35,6 @@ export function Header({
   setError,
 }: Props) {
   const [copied, setCopied] = useState(false);
-  const theme = useTheme();
   return (
     <header>
       <Wordmark />
@@ -55,7 +54,7 @@ export function Header({
             }
           }}
         >
-          {copied ? "Copied" : "Copy link ↗"}
+          {copied ? "Copied" : "Copy link"}
         </button>
       </div>
       <select
@@ -100,37 +99,13 @@ export function Header({
           </span>
         ))}
       </div>
-      <button
-        className="theme-toggle"
-        aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} theme`}
-        title={`Switch to ${theme === "dark" ? "light" : "dark"} theme`}
-        onClick={toggleTheme}
-      >
-        <svg
-          viewBox="0 0 24 24"
-          width="18"
-          height="18"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.5"
-          aria-hidden="true"
-        >
-          {theme === "dark" ? (
-            <>
-              <circle cx="12" cy="12" r="4" />
-              <path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5" />
-            </>
-          ) : (
-            <path d="M20.5 14A9 9 0 0 1 10 3.5 9 9 0 1 0 20.5 14Z" />
-          )}
-        </svg>
-      </button>
+      <ThemeToggle />
       <button
         className="primary run"
         disabled={Boolean(running) || !connected || !name}
         onClick={run}
       >
-        {running ? "Running…" : "▷ Run"}
+        {running ? "Running…" : "Run"}
         <kbd>⌘ / Ctrl ↵</kbd>
       </button>
     </header>

@@ -8,6 +8,10 @@ services:
     environment:
       RUNNER: docker
       DATA_DIR: /data
+      CF_ACCESS_TEAM: ${CF_ACCESS_TEAM:-}
+      CF_ACCESS_AUD: ${CF_ACCESS_AUD:-}
+      ADMIN_EMAILS: ${ADMIN_EMAILS:-}
+      ALLOW_UNAUTHENTICATED: "false"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - pads:/data

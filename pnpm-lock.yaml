@@ -41,6 +41,9 @@ importers:
       codemirror:
         specifier: ^6.0.0
         version: 6.0.2
+      jose:
+        specifier: ^6.2.13
+        version: 6.2.13
       react:
         specifier: ^19.0.0
         version: 19.3.1
@@ -691,6 +694,9 @@ packages:
 
   isomorphic.js@0.2.5:
     resolution: {integrity: sha512-PIeMbHqMt4DnUP3MA/Flc0HElYjMXArsw1qwJZcm9sqR8mq3l8NYizFMty0pWwE/tzIGH3EKK5+jes5mAr85yw==}
+
+  jose@6.2.13:
+    resolution: {integrity: sha512-7TIg10ZE1x82YediN+lcrPNvGMKge9yFHQD+Qho/b8y2adfugU3AsvvHfxV0fzyFllT6l9xCjf4RWY9g/Z9PJQ==}
 
   js-tokens@4.0.0:
     resolution: {integrity: sha512-RdJUflcE3cUzKiMqQgsCu06FPu9UdIJO0beYbPhHN4k6apgJtifcoCtT9bcxOpYBtpD2kCM6Sbzg4CausW/PKQ==}
@@ -1546,6 +1552,8 @@ snapshots:
     optional: true
 
   isomorphic.js@0.2.5: {}
+
+  jose@6.2.13: {}
 
   js-tokens@4.0.0: {}
 

@@ -113,17 +113,18 @@ export function Pad({ padId }: { padId: string }) {
             }}
           >
             <Wordmark />
-            <h2>What should we call you?</h2>
-            <p>Your name appears beside your cursor and runs.</p>
+            <h2>Join pad</h2>
+            <p>Your display name labels your cursor and runs.</p>
             <input
               autoFocus
               maxLength={40}
               placeholder="Your display name"
+              aria-label="Display name"
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
             />
             <button className="primary" disabled={!draft.trim()}>
-              Join pad →
+              Join pad
             </button>
           </form>
         </div>

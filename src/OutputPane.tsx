@@ -40,7 +40,7 @@ export function OutputPane({
       </div>
       {tab === "stdin" ? (
         <>
-          <div className="hint">Shared input · passed to your next run</div>
+          <div className="hint">Shared stdin for the next run</div>
           <Editor doc={doc} provider={provider} field="stdin" onRun={run} />
         </>
       ) : (
@@ -49,13 +49,8 @@ export function OutputPane({
           {running && <div className="running">Running (by {running.by})…</div>}
           {results.length === 0 && !running && (
             <div className="empty">
-              <span>›_</span>
-              <h2>Ready when you are.</h2>
-              <p>
-                Run your code to see the output here.
-                <br />
-                Everyone in the pad sees the same results.
-              </p>
+              <h2>No runs yet</h2>
+              <p>Run code to see shared output here.</p>
             </div>
           )}
           {results.map((result, i) => (

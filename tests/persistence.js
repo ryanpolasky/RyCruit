@@ -3,14 +3,16 @@ import { spawn } from "node:child_process";
 import * as Y from "yjs";
 import { WebsocketProvider } from "y-websocket";
 import WebSocket from "ws";
+import { createPad } from "./helpers.js";
 const port = 3099;
-const padId = "persist-" + Date.now().toString(36);
+let padId;
 async function start() {
   const child = spawn(process.execPath, ["server/index.js"], {
     env: {
       ...process.env,
       PORT: String(port),
       DATA_DIR: "./data/persistence-test",
+      ALLOW_UNAUTHENTICATED: "true",
     },
     stdio: ["ignore", "pipe", "pipe"],
   });
@@ -45,6 +47,7 @@ async function connect() {
 }
 let server = await start();
 try {
+  padId = await createPad(`http://127.0.0.1:${port}`);
   const a = await connect();
   a.doc.getText("stdin").insert(0, "survives restart");
   await new Promise((resolve) => setTimeout(resolve, 600));
