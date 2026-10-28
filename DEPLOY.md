@@ -1,58 +1,48 @@
-# Self-hosting RyCruit
+# Deploy RyCruit
 
-Build `rycruit-sandbox` on the Docker daemon used by the app:
+The remotely managed tunnel **ND_Basement**, DNS for **rycruit.dev**, and Ryan-only Access app **RyCruit** already exist; the tunnel routes to `http://rycruit:3001`.
 
-```sh
-docker build -f Dockerfile.sandbox -t rycruit-sandbox .
-```
+## Shared Compose
 
-Set `CF_ACCESS_TEAM` to the team slug, `CF_ACCESS_AUD` to the Access application's audience tag, and `ADMIN_EMAILS` to a comma-separated email allowlist. Use the same email in the Access policy. Do not enable `ALLOW_UNAUTHENTICATED` in production: `true` grants admin access as `ryan@local`.
-
-## Compose
-
-The repo's `docker-compose.yml` defines the app. Equivalent service configuration:
+Put the repo at `./RyCruit` beside the shared Compose file. Paste this service and merge the volume declaration into its existing top-level `volumes` section:
 
 ```yaml
 services:
   rycruit:
-    build: .
     image: rycruit
+    build: ./RyCruit
     environment:
       RUNNER: docker
       DATA_DIR: /data
-      CF_ACCESS_TEAM: ${CF_ACCESS_TEAM}
-      CF_ACCESS_AUD: ${CF_ACCESS_AUD}
-      ADMIN_EMAILS: ${ADMIN_EMAILS}
+      CF_ACCESS_TEAM: rpolasky
+      CF_ACCESS_AUD: b4e9d79dd7f3e3e67fcbd7a1a915d7214a2bee3911d1c151e91bf4c26d301e07
+      ADMIN_EMAILS: ryanpolasky@hotmail.com
       ALLOW_UNAUTHENTICATED: "false"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - pads:/data
+      - rycruit_pads:/data
     restart: unless-stopped
 volumes:
-  pads:
+  rycruit_pads:
 ```
 
-Run `docker compose up --build -d`. Keep port 3001 private when using a tunnel. The sandbox image must already exist; Compose does not build it. Docker socket access gives the app host-level Docker privileges.
+Keep `rycruit` on the same Docker network as cloudflared (the shared Compose default network works). No host port publish is needed. WebSockets use the same tunnel route.
 
-## Tunnel
+Build the sandbox once on the same Docker daemon, then start the app from the shared Compose directory:
 
-Run cloudflared on the same Docker network as the app. For a locally managed tunnel, mount its credentials and this ingress config:
-
-```yaml
-tunnel: YOUR-TUNNEL-UUID
-credentials-file: /etc/cloudflared/YOUR-TUNNEL-UUID.json
-ingress:
-  - hostname: rycruit.ryanpolasky.com
-    service: http://rycruit:3001
-  - service: http_status:404
+```sh
+(cd RyCruit && docker build -f Dockerfile.sandbox -t rycruit-sandbox .)
+docker compose up -d --build rycruit
+docker compose logs --tail=50 rycruit
+docker compose exec rycruit docker version
 ```
 
-Create the tunnel DNS route for `rycruit.ryanpolasky.com`. For a remotely managed tunnel, set the public hostname's service to `http://rycruit:3001` instead. Enable WebSockets in Cloudflare's Network settings; Tunnel forwards `/ws/*` without a separate ingress rule. Do not cache HTML, API, creation or invite responses.
+Rebuild the sandbox when `Dockerfile.sandbox` or `server/sandbox.py` changes. The repo's own Compose file is also runnable with `docker compose up -d --build` from the repo; it uses `build: .` and does not publish a host port. For tunnel access, use the shared Compose deployment above.
 
-## Access
+## Runtime and Access
 
-Create a **Self-hosted** Access application for `rycruit.ryanpolasky.com`. Add protected destinations for `/new`, `/admin` and `/admin/*` (a wildcard only may not cover the bare `/admin` path). Keep `/`, `/p/*`, `/i/*` and `/ws/*` public. Add an Allow policy including Ryan's exact email. Copy the application's AUD tag into `CF_ACCESS_AUD`; the team slug is the prefix of `https://TEAM.cloudflareaccess.com`.
+The app image includes the Docker CLI and runs as root. Docker Desktop on macOS exposes a root-owned socket proxy: root in the container is simplest; a non-root override needs matching socket group permissions. Mounting the socket grants host-level Docker privileges. Back up the `rycruit_pads` volume, including SQLite/WAL consistently. If upgrading an existing install, reuse its existing pad volume rather than starting an empty one.
 
-The server verifies the `Cf-Access-Jwt-Assertion` with the team's JWKS, issuer, AUD, expiry and email allowlist. Since `/api/admin/*` is outside the protected edge paths, it also accepts the browser's `CF_Authorization` cookie **only after the same JWT verification**. An unsigned email header or cookie is never sufficient. Direct-origin requests without a valid JWT receive 403; the edge policy is not the API's security boundary. Admin mutations reject cross-site origins.
+Access protects `/new`, `/admin`, `/admin/*`, `/api/admin` and `/api/admin/*`. The server independently verifies `Cf-Access-Jwt-Assertion` against the `rpolasky` team's keys, configured AUD, expiry and admin email. The verified `CF_Authorization` cookie remains a fallback; it is not needed when Access supplies the header. Keep `ALLOW_UNAUTHENTICATED` false. Existing pad links, invites and collaboration remain public.
 
-Visit `/new` to create a pad or `/admin` to manage pads and mint invites. Single-use invites are consumed when opened, including by link scanners. Expiring invites allow repeated creation until expiry. Treat invite URLs as bearer credentials; revoking one leaves its existing pads intact. Back up the `pads` volume (`rycruit.sqlite` and its WAL consistently); it contains code, the registry, and invite tokens. Legacy pads are registered on first startup with `legacy` attribution and migration-time timestamps.
+Open https://rycruit.dev/admin to manage pads/invites or https://rycruit.dev/new to create a pad. Single-use invites are consumed when opened, including by link scanners.

@@ -3,18 +3,16 @@ services:
   rycruit:
     image: rycruit
     build: .
-    ports:
-      - "3001:3001"
     environment:
       RUNNER: docker
       DATA_DIR: /data
-      CF_ACCESS_TEAM: ${CF_ACCESS_TEAM:-}
-      CF_ACCESS_AUD: ${CF_ACCESS_AUD:-}
-      ADMIN_EMAILS: ${ADMIN_EMAILS:-}
+      CF_ACCESS_TEAM: rpolasky
+      CF_ACCESS_AUD: b4e9d79dd7f3e3e67fcbd7a1a915d7214a2bee3911d1c151e91bf4c26d301e07
+      ADMIN_EMAILS: ryanpolasky@hotmail.com
       ALLOW_UNAUTHENTICATED: "false"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - pads:/data
+      - rycruit_pads:/data
     restart: unless-stopped
 volumes:
-  pads:
+  rycruit_pads:
