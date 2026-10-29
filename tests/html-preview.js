@@ -302,8 +302,7 @@ try {
             context.measureText(select.selectedOptions[0].text).width <=
             select.clientWidth -
               parseFloat(style.paddingLeft) -
-              parseFloat(style.paddingRight) -
-              18
+              parseFloat(style.paddingRight)
           );
         }),
         `${lang} mobile label fits`,
