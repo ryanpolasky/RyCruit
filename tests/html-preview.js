@@ -41,10 +41,15 @@ try {
         colorScheme: theme,
       });
       await context.addInitScript(
-        (name) => {
-          if (window === window.top) localStorage.setItem("rycruit.name", name);
+        ({ name, id }) => {
+          if (window === window.top) {
+            localStorage.setItem("rycruit.name", name);
+            localStorage.setItem("rycruit.userId", id);
+          }
         },
-        theme === "dark" ? "Ryan" : "Alex",
+        theme === "dark"
+          ? { name: "Ryan", id: "selection-test-ryan" }
+          : { name: "Alex", id: "selection-test-alex" },
       );
       return context;
     }),
@@ -59,16 +64,100 @@ try {
   await a.locator('.presence small[aria-label="2 tabs"]').waitFor();
   await a.locator(".presence > span").filter({ hasText: "Alex" }).waitFor();
   assert.equal(await a.locator(".presence > span").count(), 2);
-  await b.locator(".code-pane .cm-line").nth(3).click();
+  async function assertSelection(page, color) {
+    const selection = page.locator(".code-pane .cm-selectionBackground");
+    await selection.first().waitFor();
+    const details = await selection.first().evaluate((element) => {
+      const rect = element.getBoundingClientRect();
+      return {
+        color: getComputedStyle(element).backgroundColor,
+        width: rect.width,
+        height: rect.height,
+      };
+    });
+    assert.equal(details.color, color);
+    assert(details.width > 0);
+    assert(details.height > 0);
+    assert.equal(
+      await page
+        .locator(".code-pane .cm-activeLine")
+        .evaluate((element) => getComputedStyle(element).backgroundColor),
+      "rgba(0, 0, 0, 0)",
+    );
+  }
+  for (const [page, theme, color] of [
+    [a, "dark", "rgb(33, 66, 131)"],
+    [light, "light", "rgb(166, 210, 255)"],
+  ]) {
+    await page.bringToFront();
+    const line = page.locator(".code-pane .cm-line").first();
+    await line.dblclick({ position: { x: 15, y: 10 } });
+    await assertSelection(page, color);
+    await line.click();
+    await page.keyboard.press("Home");
+    await page.keyboard.press("Shift+ArrowRight");
+    await assertSelection(page, color);
+    const box = await line.boundingBox();
+    assert(box);
+    await page.mouse.move(box.x + 7, box.y + box.height - 10);
+    await page.mouse.down();
+    await page.mouse.move(box.x + 45, box.y + box.height - 10);
+    await page.mouse.up();
+    await assertSelection(page, color);
+    await page.screenshot({ path: `shots/selection-single-${theme}.png` });
+  }
+  await b.locator(".code-pane .cm-line").first().click();
   await b.keyboard.press("Home");
   await light.locator(".code-pane .cm-line").nth(2).click();
   await light.keyboard.press("Home");
+  await light.keyboard.press("Shift+ArrowRight");
+  await assertSelection(light, "rgb(166, 210, 255)");
   await a.waitForFunction(
     () =>
       document.querySelectorAll(".code-pane .cm-ySelectionCaret").length === 2,
   );
+  for (const page of [a, light]) {
+    await page.waitForFunction(() =>
+      [...document.querySelectorAll(".code-pane .cm-ySelectionInfo")].every(
+        (element) => {
+          const style = getComputedStyle(element);
+          const rect = element.getBoundingClientRect();
+          const scroller = element
+            .closest(".cm-scroller")
+            .getBoundingClientRect();
+          const caret = element.parentElement.getBoundingClientRect();
+          return (
+            style.opacity === "1" &&
+            rect.width > 0 &&
+            rect.height > 0 &&
+            rect.left >= scroller.left &&
+            rect.top >= scroller.top &&
+            rect.bottom <= caret.top + 1
+          );
+        },
+      ),
+    );
+  }
+  await a.bringToFront();
+  assert(
+    await a
+      .locator(".cm-ySelection")
+      .evaluateAll((elements) =>
+        elements.some(
+          (element) =>
+            element.getBoundingClientRect().width > 0 &&
+            getComputedStyle(element).backgroundColor !== "rgba(0, 0, 0, 0)",
+        ),
+      ),
+  );
+  await a.screenshot({ path: "shots/cursor-names-dark.png" });
+  await light.bringToFront();
+  await light.screenshot({ path: "shots/cursor-names-light.png" });
   await a.bringToFront();
   await a.screenshot({ path: "shots/presence-tabs-dark.png" });
+  console.log(
+    "PASS editor selections: drag, shift-arrow and double-click single-line selections render in both themes; remote selections and cursor labels are visible",
+  );
   await b.reload();
   await b.getByText("● Live", { exact: true }).waitFor();
   await a.locator('.presence small[aria-label="2 tabs"]').waitFor();
@@ -135,6 +224,40 @@ try {
     .waitFor();
   await light.bringToFront();
   await light.screenshot({ path: "shots/pad-html-light.png" });
+  const html = doc.getText("html");
+  for (const burst of ["first", "second"]) {
+    doc.transact(() => {
+      html.delete(0, html.length);
+      html.insert(
+        0,
+        `<script>for (let i = 0; i < 45; i++) console.log('${burst} ' + i)</script>`,
+      );
+    });
+    await a
+      .locator(".console-lines")
+      .getByText(`${burst} 44`, { exact: true })
+      .waitFor();
+    assert(
+      await a
+        .locator(".console-lines")
+        .evaluate(
+          (element) =>
+            element.scrollHeight > element.clientHeight &&
+            element.scrollTop + element.clientHeight >=
+              element.scrollHeight - 1,
+        ),
+    );
+  }
+  console.log("PASS HTML console: each burst stays pinned to the newest line");
+  const { starters } = await import("../server/store.js");
+  doc.transact(() => {
+    html.delete(0, html.length);
+    html.insert(0, starters.html);
+  });
+  await a
+    .frameLocator("iframe")
+    .getByRole("heading", { name: "Hello, web!" })
+    .waitFor();
   const result = await fetch(`${base}/api/run`, {
     method: "POST",
     body: JSON.stringify({ padId: pad, by: "Ryan" }),
@@ -153,7 +276,6 @@ try {
       .count(),
     0,
   );
-  const html = doc.getText("html");
   doc.transact(() => {
     html.delete(0, html.length);
     html.insert(
@@ -253,7 +375,59 @@ try {
   console.log(
     "PASS language switching: HTML shows only Preview/console; runnable mode restores Output/Stdin with the original Go history intact",
   );
-  const { starters } = await import("../server/store.js");
+  for (const burst of [30, 12]) {
+    await a.locator(".output").evaluate((element) => {
+      element.scrollTop = 0;
+    });
+    const results = doc.getArray("results");
+    doc.transact(() => {
+      results.push(
+        Array.from({ length: burst }, (_, index) => ({
+          at: Date.now() + index,
+          by: "Ryan",
+          compileError: false,
+          exitCode: 0,
+          lang: "python",
+          stderr: "",
+          stdout: `${"output line ".repeat(12)}${burst}:${index}\n`,
+          timeMs: 1,
+        })),
+      );
+    });
+    await a
+      .locator(".output article")
+      .nth(Math.min(19, burst - 1))
+      .waitFor();
+    await a
+      .locator(".output article")
+      .last()
+      .getByText(new RegExp(`${burst}:${burst - 1}`))
+      .waitFor();
+    assert(
+      await a
+        .locator(".output")
+        .evaluate(
+          (element) =>
+            element.scrollHeight > element.clientHeight &&
+            element.scrollTop + element.clientHeight >=
+              element.scrollHeight - 1,
+        ),
+    );
+    await a.getByRole("button", { name: "Stdin", exact: true }).click();
+    await a.getByRole("button", { name: /^Output/ }).click();
+    assert(
+      await a
+        .locator(".output")
+        .evaluate(
+          (element) =>
+            element.scrollTop + element.clientHeight >=
+            element.scrollHeight - 1,
+        ),
+    );
+  }
+  console.log(
+    "PASS runnable output: each result burst stays pinned to the newest run",
+  );
   doc.transact(() => {
     html.insert(0, starters.html);
     doc.getMap("meta").set("language", "html");

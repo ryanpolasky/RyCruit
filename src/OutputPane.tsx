@@ -2,7 +2,7 @@ import * as Y from "yjs";
 import { WebsocketProvider } from "y-websocket";
 import type { Result } from "./types";
 import { Editor } from "./Editor";
-import type { ReactNode } from "react";
+import { useLayoutEffect, useRef, type ReactNode } from "react";
 type Props = {
   doc: Y.Doc;
   provider: WebsocketProvider;
@@ -25,6 +25,11 @@ export function OutputPane({
   running,
   preview,
 }: Props) {
+  const outputRef = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    if (outputRef.current)
+      outputRef.current.scrollTop = outputRef.current.scrollHeight;
+  }, [results, error, running, tab]);
   return (
     <section className="side-pane">
       <div className="tabs">
@@ -60,9 +65,7 @@ export function OutputPane({
           <Editor doc={doc} provider={provider} field="stdin" onRun={run} />
         </>
       ) : (
-        <div className="output" aria-live="polite">
-          {error && <p className="error">{error}</p>}
-          {running && <div className="running">Running (by {running.by})…</div>}
+        <div className="output" aria-live="polite" ref={outputRef}>
           {results.length === 0 && !running && (
             <div className="empty">
               <h2>No runs yet</h2>
@@ -93,6 +96,8 @@ export function OutputPane({
               )}
             </article>
           ))}
+          {error && <p className="error">{error}</p>}
+          {running && <div className="running">Running (by {running.by})…</div>}
         </div>
       )}
     </section>

@@ -24,11 +24,7 @@ export function Pad({ padId }: { padId: string }) {
     setError("");
   }, [safeLang]);
   const running = meta.get("running") as { by: string } | undefined;
-  const results = doc
-    .getArray<Result>("results")
-    .toArray()
-    .slice(-20)
-    .reverse();
+  const results = doc.getArray<Result>("results").toArray().slice(-20);
   const people = [...provider.awareness.getStates().values()]
     .map((s) => s.user as Person | undefined)
     .filter((p): p is Person => Boolean(p?.name));

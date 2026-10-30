@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type * as Y from "yjs";
 
 const policy =
@@ -9,6 +9,11 @@ export function HtmlPreview({ doc, refresh }: { doc: Y.Doc; refresh: number }) {
   const frame = useRef<HTMLIFrameElement>(null);
   const [page, setPage] = useState({ source: "", token: "" });
   const [entries, setEntries] = useState<Entry[]>([]);
+  const consoleRef = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    if (consoleRef.current)
+      consoleRef.current.scrollTop = consoleRef.current.scrollHeight;
+  }, [entries]);
   useEffect(() => {
     const html = doc.getText("html");
     let timer: ReturnType<typeof setTimeout>;
@@ -79,7 +84,7 @@ export function HtmlPreview({ doc, refresh }: { doc: Y.Doc; refresh: number }) {
         <div className="console-label">
           Console <span>Local to this browser · last 100 messages</span>
         </div>
-        <div className="console-lines" aria-live="polite">
+        <div className="console-lines" aria-live="polite" ref={consoleRef}>
           {entries.length === 0 ? (
             <p className="muted">Console messages appear here.</p>
           ) : (

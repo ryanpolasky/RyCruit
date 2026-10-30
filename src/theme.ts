@@ -76,10 +76,18 @@ export function createEditorTheme(theme: Theme) {
           background: "var(--active-line)",
         },
         ".cm-activeLineGutter": { color: "var(--line-number-active)" },
+        "&:has(.cm-selectionBackground) .cm-activeLine": {
+          background: "transparent",
+        },
+        ".cm-line:has(.cm-ySelectionCaret)": { paddingTop: "22px" },
         "&.cm-focused .cm-cursor": { borderLeftColor: "var(--caret)" },
         ".cm-selectionBackground, &.cm-focused .cm-selectionBackground": {
           background: "var(--selection)",
         },
+        "&.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground":
+          {
+            background: "var(--selection)",
+          },
         ".cm-foldPlaceholder": {
           background: "var(--surface)",
           color: "var(--muted)",
@@ -97,6 +105,10 @@ export function createEditorTheme(theme: Theme) {
           padding: "3px 6px",
           borderRadius: "3px",
           color: "#FFFFFF",
+          opacity: "1",
+          top: "-1.8em",
+          left: "0",
+          boxShadow: "0 1px 3px rgba(0, 0, 0, 0.25)",
         },
       },
       { dark: theme === "dark" },
