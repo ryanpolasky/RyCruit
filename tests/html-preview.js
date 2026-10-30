@@ -5,6 +5,8 @@ import { WebsocketProvider } from "y-websocket";
 import WebSocket from "ws";
 import { chromium } from "playwright-core";
 import { startServer, stopServer, createPad } from "./helpers.js";
+import { startImageFixture } from "./image-fixture.js";
+const images = await startImageFixture();
 const base = "http://127.0.0.1:3118";
 const server = await startServer(3118, {
   ALLOW_UNAUTHENTICATED: "true",
@@ -39,6 +41,7 @@ try {
       const context = await browser.newContext({
         viewport: { width: 1440, height: 900 },
         colorScheme: theme,
+        ignoreHTTPSErrors: true,
       });
       await context.addInitScript(
         ({ name, id }) => {
@@ -391,6 +394,59 @@ try {
   console.log(
     "PASS HTML collaboration: two isolated browser clients render shared edits/styles/scripts; console stays local; Refresh resets scripts; server rejects HTML runs",
   );
+  doc.transact(() => {
+    html.delete(0, html.length);
+    html.insert(
+      0,
+      `<style>
+      body{margin:24px;background:#181a1b;color:#e2e2e5;font:16px system-ui}
+      h1{font-size:24px}img{display:block;width:100%;border-radius:8px}
+      .background{height:64px;margin-top:16px;background:center/cover url(${images.url}/background.svg);border-radius:8px}
+      p{color:#aaaeb7}
+    </style><h1>Images in HTML</h1><img alt="Mountain landscape" src="${images.url}/landscape.svg"><div class="background"></div><p>An HTTPS image and a CSS background image.</p><script>
+      fetch('${images.url}/fetch').then(()=>console.error('HTTPS fetch allowed')).catch(()=>console.log('HTTPS fetch blocked'));
+    </script>`,
+    );
+  });
+  const landscape = a.frameLocator("iframe").getByAltText("Mountain landscape");
+  await landscape.waitFor();
+  assert(
+    await landscape.evaluate(async (image) => {
+      await image.decode();
+      return image.naturalWidth > 0;
+    }),
+  );
+  await until(() => images.requests.has("/background.svg"));
+  await a
+    .locator(".console-lines")
+    .getByText("HTTPS fetch blocked", { exact: true })
+    .waitFor();
+  assert.deepEqual([...images.requests].sort(), [
+    "/background.svg",
+    "/landscape.svg",
+  ]);
+  const imagePolicy = await a
+    .frameLocator("iframe")
+    .locator('meta[http-equiv="Content-Security-Policy"]')
+    .getAttribute("content");
+  assert.match(imagePolicy, /img-src https: data: blob:;/);
+  for (const directive of [
+    "connect-src",
+    "frame-src",
+    "object-src",
+    "base-uri",
+    "form-action",
+  ])
+    assert(imagePolicy.includes(`${directive} 'none'`));
+  assert.equal(
+    await a.locator("iframe").getAttribute("sandbox"),
+    "allow-scripts allow-modals",
+  );
+  await a.bringToFront();
+  await a.screenshot({ path: "shots/html-image.png" });
+  console.log(
+    "PASS HTML images: HTTPS image decodes with naturalWidth > 0; CSS background loads; same-host HTTPS fetch stays blocked; sandbox and other CSP restrictions unchanged",
+  );
   let sourceRequests = 0;
   await a.route("**/preview-forbidden", (route) => {
     sourceRequests++;
@@ -634,4 +690,5 @@ try {
   doc.destroy();
   await browser.close();
   await stopServer(server);
+  await images.close();
 }

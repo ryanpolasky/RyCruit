@@ -110,7 +110,7 @@ export function Pad({ padId }: { padId: string }) {
       <footer>
         <span>
           {safeLang === "html"
-            ? "Live preview · isolated in your browser · no network access"
+            ? "Live preview · isolated in your browser · HTTPS images allowed"
             : "5s runtime · 256MB memory · last 20 runs"}
         </span>
       </footer>
