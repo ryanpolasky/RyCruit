@@ -64,6 +64,78 @@ try {
   await a.locator('.presence small[aria-label="2 tabs"]').waitFor();
   await a.locator(".presence > span").filter({ hasText: "Alex" }).waitFor();
   assert.equal(await a.locator(".presence > span").count(), 2);
+  async function editorGeometry(page) {
+    return page.locator(".code-pane .cm-editor").evaluate((editor) => {
+      function textTop(element) {
+        const walker = document.createTreeWalker(
+          element,
+          NodeFilter.SHOW_TEXT,
+          {
+            acceptNode: (node) =>
+              node.textContent.trim() &&
+              !node.parentElement.closest(".cm-ySelectionCaret")
+                ? NodeFilter.FILTER_ACCEPT
+                : NodeFilter.FILTER_REJECT,
+          },
+        );
+        const node = walker.nextNode();
+        if (!node) return null;
+        const range = document.createRange();
+        range.selectNodeContents(node);
+        return range.getBoundingClientRect().top;
+      }
+      return {
+        lines: [...editor.querySelectorAll(".cm-line")].map((element) => {
+          const rect = element.getBoundingClientRect();
+          return {
+            top: rect.top,
+            height: rect.height,
+            textTop: textTop(element),
+          };
+        }),
+        numbers: [
+          ...editor.querySelectorAll(".cm-lineNumbers .cm-gutterElement"),
+        ]
+          .filter(
+            (element) =>
+              /^\d+$/.test(element.textContent) &&
+              getComputedStyle(element).visibility !== "hidden",
+          )
+          .map((element) => ({
+            number: Number(element.textContent),
+            textTop: textTop(element),
+          })),
+      };
+    });
+  }
+  const initialGeometry = new Map();
+  for (const page of [a, light]) {
+    await page.evaluate(() => document.fonts.ready);
+    initialGeometry.set(page, await editorGeometry(page));
+  }
+  async function assertEditorGeometry(page) {
+    const geometry = await editorGeometry(page);
+    const initial = initialGeometry.get(page);
+    assert.equal(geometry.lines.length, initial.lines.length);
+    for (const [index, line] of geometry.lines.entries()) {
+      assert(
+        Math.abs(line.height - initial.lines[0].height) < 0.5,
+        `line ${index + 1} keeps a constant height`,
+      );
+      assert(
+        Math.abs(line.top - initial.lines[index].top) < 0.5,
+        `line ${index + 1} does not jump`,
+      );
+    }
+    for (const gutter of geometry.numbers) {
+      const line = geometry.lines[gutter.number - 1];
+      if (line.textTop !== null)
+        assert(
+          Math.abs(gutter.textTop - line.textTop) < 1,
+          `gutter ${gutter.number} aligns with its text`,
+        );
+    }
+  }
   async function assertSelection(page, color) {
     const selection = page.locator(".code-pane .cm-selectionBackground");
     await selection.first().waitFor();
@@ -130,6 +202,9 @@ try {
             style.opacity === "1" &&
             rect.width > 0 &&
             rect.height > 0 &&
+            rect.height <= 16 &&
+            style.pointerEvents === "none" &&
+            style.zIndex === "5" &&
             rect.left >= scroller.left &&
             rect.top >= scroller.top &&
             rect.bottom <= caret.top + 1
@@ -137,6 +212,7 @@ try {
         },
       ),
     );
+    await assertEditorGeometry(page);
   }
   await a.bringToFront();
   assert(
@@ -155,8 +231,19 @@ try {
   await light.screenshot({ path: "shots/cursor-names-light.png" });
   await a.bringToFront();
   await a.screenshot({ path: "shots/presence-tabs-dark.png" });
+  await b.locator(".code-pane .cm-line").nth(3).click();
+  await b.keyboard.press("Home");
+  await a.waitForFunction(() =>
+    document
+      .querySelectorAll(".code-pane .cm-line")[3]
+      .querySelector(".cm-ySelectionCaret"),
+  );
+  for (const page of [a, light]) await assertEditorGeometry(page);
   console.log(
     "PASS editor selections: drag, shift-arrow and double-click single-line selections render in both themes; remote selections and cursor labels are visible",
+  );
+  console.log(
+    "PASS cursor geometry: compact floating labels, constant line heights and positions, aligned gutter text before and after cursor movement in both themes",
   );
   await b.reload();
   await b.getByText("● Live", { exact: true }).waitFor();
@@ -180,8 +267,11 @@ try {
   );
   await a.getByLabel("Language", { exact: true }).selectOption("go");
   await a.getByText("main.go", { exact: true }).waitFor();
+  assert.match(await a.locator(".tabs button.active").textContent(), /^Output/);
+  await a.getByRole("button", { name: "Stdin", exact: true }).click();
   await a.locator("button.run").click();
   await a.locator(".output pre").filter({ hasText: "Hello, world!" }).waitFor();
+  assert.match(await a.locator(".tabs button.active").textContent(), /^Output/);
   await a.bringToFront();
   await a.screenshot({ path: "shots/pad-go-dark.png" });
   console.log(

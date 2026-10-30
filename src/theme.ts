@@ -65,7 +65,7 @@ export function createEditorTheme(theme: Theme) {
           fontSize: "13px",
           lineHeight: "1.8",
         },
-        ".cm-content": { padding: "20px 0", caretColor: "var(--caret)" },
+        ".cm-content": { padding: "24px 0 20px", caretColor: "var(--caret)" },
         ".cm-gutters": {
           background: "var(--editor)",
           color: "var(--line-number)",
@@ -79,7 +79,6 @@ export function createEditorTheme(theme: Theme) {
         "&:has(.cm-selectionBackground) .cm-activeLine": {
           background: "transparent",
         },
-        ".cm-line:has(.cm-ySelectionCaret)": { paddingTop: "22px" },
         "&.cm-focused .cm-cursor": { borderLeftColor: "var(--caret)" },
         ".cm-selectionBackground, &.cm-focused .cm-selectionBackground": {
           background: "var(--selection)",
@@ -101,13 +100,16 @@ export function createEditorTheme(theme: Theme) {
         ".cm-panels": { background: "var(--surface)", color: "var(--text)" },
         ".cm-ySelectionInfo": {
           fontFamily: "var(--ui)",
-          fontSize: "11px",
-          padding: "3px 6px",
+          fontSize: "10px",
+          lineHeight: "14px",
+          padding: "1px 4px",
           borderRadius: "3px",
           color: "#FFFFFF",
           opacity: "1",
-          top: "-1.8em",
+          top: "-18px",
           left: "0",
+          zIndex: "5",
+          pointerEvents: "none",
           boxShadow: "0 1px 3px rgba(0, 0, 0, 0.25)",
         },
       },
