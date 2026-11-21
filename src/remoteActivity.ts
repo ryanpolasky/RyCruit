@@ -1,7 +1,9 @@
 import { EditorView, ViewPlugin } from "@codemirror/view";
 import type { WebsocketProvider } from "y-websocket";
+import type { Transaction } from "yjs";
 
 type Awareness = WebsocketProvider["awareness"];
+type User = { name?: string; color?: string };
 
 function normalizeColor(color: string) {
   const hex = color.match(/^#([\da-f]{3}|[\da-f]{6})$/i)?.[1];
@@ -25,6 +27,7 @@ export function remoteActivity(awareness: Awareness) {
   return ViewPlugin.fromClass(
     class {
       private view: EditorView;
+      private doc: Awareness["doc"];
       private cursors = new Map<number, string | undefined>();
       private lastActive = new Map<string, number>();
       private timers = new Set<ReturnType<typeof setTimeout>>();
@@ -32,10 +35,13 @@ export function remoteActivity(awareness: Awareness) {
 
       constructor(view: EditorView) {
         this.view = view;
+        const doc = awareness.doc;
+        this.doc = doc;
         for (const [clientID, state] of awareness.getStates()) {
           this.cursors.set(clientID, JSON.stringify(state.cursor));
         }
         awareness.on("change", this.onChange);
+        doc.on("afterTransaction", this.onTransaction);
       }
 
       update() {
@@ -44,6 +50,7 @@ export function remoteActivity(awareness: Awareness) {
 
       destroy() {
         awareness.off("change", this.onChange);
+        this.doc.off("afterTransaction", this.onTransaction);
         if (this.frame !== null) cancelAnimationFrame(this.frame);
         for (const timer of this.timers) clearTimeout(timer);
       }
@@ -65,17 +72,34 @@ export function remoteActivity(awareness: Awareness) {
           this.cursors.set(clientID, cursor);
           if (clientID === awareness.clientID || cursor === previous) continue;
 
-          const color = normalizeColor(state?.user?.color ?? "#30bced");
-          const key = `${state?.user?.name ?? "Anonymous"}|${color}`;
-          this.lastActive.set(key, Date.now());
-          this.scheduleRefresh();
-          const timer = setTimeout(() => {
-            this.timers.delete(timer);
-            this.scheduleRefresh();
-          }, 2050);
-          this.timers.add(timer);
+          this.markActive(state?.user);
         }
       };
+
+      private onTransaction = (transaction: Transaction) => {
+        for (const [client, clock] of transaction.afterState) {
+          if (
+            client === this.doc.clientID ||
+            clock === (transaction.beforeState.get(client) ?? 0)
+          ) {
+            continue;
+          }
+          const user = awareness.getStates().get(client)?.user;
+          if (user) this.markActive(user);
+        }
+      };
+
+      private markActive(user?: User) {
+        const color = normalizeColor(user?.color ?? "#30bced");
+        const key = `${user?.name ?? "Anonymous"}|${color}`;
+        this.lastActive.set(key, Date.now());
+        this.scheduleRefresh();
+        const timer = setTimeout(() => {
+          this.timers.delete(timer);
+          this.scheduleRefresh();
+        }, 2050);
+        this.timers.add(timer);
+      }
 
       private scheduleRefresh() {
         if (this.frame !== null) return;

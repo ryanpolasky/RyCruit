@@ -269,6 +269,48 @@ try {
       .querySelector(".cm-ySelectionCaret"),
   );
   for (const page of [a, light]) await assertEditorGeometry(page);
+  await a.mouse.move(1, 1);
+  await a.waitForFunction(
+    () => {
+      const tags = [
+        ...document.querySelectorAll(".code-pane .cm-ySelectionInfo"),
+      ].filter((element) => element.textContent === "Ryan");
+      return (
+        tags.length > 0 &&
+        tags.every((element) => getComputedStyle(element).opacity === "0")
+      );
+    },
+    null,
+    { timeout: 6000 },
+  );
+  await b.locator(".code-pane .cm-content").click();
+  await b.keyboard.press("Control+End");
+  for (const [index, character] of [..."abcdefgh"].entries()) {
+    await b.keyboard.type(character);
+    await b.waitForTimeout(400);
+    if (index === 5 || index === 7) {
+      await a.waitForFunction(() =>
+        [...document.querySelectorAll(".code-pane .cm-ySelectionInfo")].some(
+          (element) =>
+            element.textContent === "Ryan" &&
+            getComputedStyle(element).opacity === "1",
+        ),
+      );
+    }
+  }
+  await a.waitForFunction(
+    () => {
+      const tags = [
+        ...document.querySelectorAll(".code-pane .cm-ySelectionInfo"),
+      ].filter((element) => element.textContent === "Ryan");
+      return (
+        tags.length > 0 &&
+        tags.every((element) => getComputedStyle(element).opacity === "0")
+      );
+    },
+    null,
+    { timeout: 6000 },
+  );
   console.log(
     "PASS editor selections: drag, shift-arrow and double-click single-line selections render in both themes; remote selections and active/hovered cursor labels are visible",
   );
