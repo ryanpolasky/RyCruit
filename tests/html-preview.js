@@ -1,11 +1,13 @@
 import assert from "node:assert/strict";
 import { globSync } from "node:fs";
+import { mkdir } from "node:fs/promises";
 import * as Y from "yjs";
 import { WebsocketProvider } from "y-websocket";
 import WebSocket from "ws";
 import { chromium } from "playwright-core";
 import { startServer, stopServer, createPad } from "./helpers.js";
 import { startImageFixture } from "./image-fixture.js";
+await mkdir(new URL("../shots/", import.meta.url), { recursive: true });
 const images = await startImageFixture();
 const base = "http://127.0.0.1:3118";
 const server = await startServer(3118, {
@@ -194,28 +196,53 @@ try {
   for (const page of [a, light]) {
     await page.waitForFunction(() =>
       [...document.querySelectorAll(".code-pane .cm-ySelectionInfo")].every(
-        (element) => {
-          const style = getComputedStyle(element);
-          const rect = element.getBoundingClientRect();
-          const scroller = element
-            .closest(".cm-scroller")
-            .getBoundingClientRect();
-          const caret = element.parentElement.getBoundingClientRect();
-          return (
-            style.opacity === "1" &&
-            rect.width > 0 &&
-            rect.height > 0 &&
-            rect.height <= 16 &&
-            style.pointerEvents === "none" &&
-            style.zIndex === "5" &&
-            rect.left >= scroller.left &&
-            rect.top >= scroller.top &&
-            rect.bottom <= caret.top + 1
-          );
-        },
+        (element) => getComputedStyle(element).opacity === "1",
       ),
     );
+    assert(
+      await page
+        .locator(".code-pane .cm-ySelectionInfo")
+        .evaluateAll((elements) =>
+          elements.every((element) => {
+            const style = getComputedStyle(element);
+            const rect = element.getBoundingClientRect();
+            const scroller = element
+              .closest(".cm-scroller")
+              .getBoundingClientRect();
+            const caret = element.parentElement.getBoundingClientRect();
+            return (
+              rect.width > 0 &&
+              rect.height > 0 &&
+              rect.height <= 16 &&
+              style.pointerEvents === "none" &&
+              style.zIndex === "5" &&
+              rect.left >= scroller.left &&
+              rect.top >= scroller.top &&
+              rect.bottom <= caret.top + 1
+            );
+          }),
+        ),
+    );
     await assertEditorGeometry(page);
+  }
+  for (const page of [a, light]) {
+    await page.mouse.move(1, 1);
+    await page.waitForFunction(
+      () =>
+        [...document.querySelectorAll(".code-pane .cm-ySelectionInfo")].every(
+          (element) => getComputedStyle(element).opacity === "0",
+        ),
+      null,
+      { timeout: 6000 },
+    );
+    const caret = page.locator(".code-pane .cm-ySelectionCaret").first();
+    await caret.hover();
+    await page.waitForFunction(
+      () =>
+        getComputedStyle(
+          document.querySelector(".code-pane .cm-ySelectionInfo"),
+        ).opacity === "1",
+    );
   }
   await a.bringToFront();
   assert(
@@ -243,7 +270,7 @@ try {
   );
   for (const page of [a, light]) await assertEditorGeometry(page);
   console.log(
-    "PASS editor selections: drag, shift-arrow and double-click single-line selections render in both themes; remote selections and cursor labels are visible",
+    "PASS editor selections: drag, shift-arrow and double-click single-line selections render in both themes; remote selections and active/hovered cursor labels are visible",
   );
   console.log(
     "PASS cursor geometry: compact floating labels, constant line heights and positions, aligned gutter text before and after cursor movement in both themes",

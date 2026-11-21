@@ -50,7 +50,7 @@ export function usePadSession(padId: string, name: string) {
         id,
         name,
         color,
-        colorLight: color + "30",
+        colorLight: color + "6b",
       });
   }, [name, color, id, provider]);
 

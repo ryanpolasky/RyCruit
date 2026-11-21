@@ -15,6 +15,7 @@ import { javaLanguage } from "@codemirror/lang-java";
 import { LanguageSupport, StreamLanguage } from "@codemirror/language";
 import { styleTags, tags } from "@lezer/highlight";
 import { yCollab } from "y-codemirror.next";
+import { remoteActivity } from "./remoteActivity";
 import type { Lang } from "./types";
 import { createEditorTheme, useTheme } from "./theme";
 const languages = {
@@ -73,6 +74,7 @@ export function Editor({
           themeSlot.current.of(createEditorTheme(themeRef.current)),
           ...(lang ? [languages[lang]()] : []),
           yCollab(text, provider.awareness),
+          remoteActivity(provider.awareness),
           keymap.of([
             {
               key: "Mod-Enter",

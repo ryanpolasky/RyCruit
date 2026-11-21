@@ -87,6 +87,20 @@ export function createEditorTheme(theme: Theme) {
           {
             background: "var(--selection)",
           },
+        ".cm-ySelectionCaret::after": {
+          content: '""',
+          position: "absolute",
+          left: "-5px",
+          width: "10px",
+          top: "0",
+          bottom: "0",
+        },
+        ".cm-ySelectionCaretDot": {
+          width: "7px",
+          height: "7px",
+          top: "-3px",
+          left: "-3.5px",
+        },
         ".cm-foldPlaceholder": {
           background: "var(--surface)",
           color: "var(--muted)",
@@ -105,13 +119,16 @@ export function createEditorTheme(theme: Theme) {
           padding: "1px 4px",
           borderRadius: "3px",
           color: "#FFFFFF",
-          opacity: "1",
+          opacity: "0",
+          transition: "opacity .2s",
           top: "-18px",
           left: "0",
           zIndex: "5",
           pointerEvents: "none",
           boxShadow: "0 1px 3px rgba(0, 0, 0, 0.25)",
         },
+        ".cm-ySelectionCaret:hover > .cm-ySelectionInfo, .cm-ySelectionCaret-active > .cm-ySelectionInfo":
+          { opacity: "1" },
       },
       { dark: theme === "dark" },
     ),
